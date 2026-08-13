@@ -497,7 +497,7 @@ function Landing() {
           </button>
         </div>
       </header>
-      <div className="grid flex-1 items-center gap-10 py-12 lg:grid-cols-[1fr_0.9fr]">
+      <div className="grid flex-1 items-center gap-10 py-12 lg:grid-cols-[0.92fr_1.08fr]">
         <div className="max-w-2xl">
           <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-sm text-cyan-100">
             <Sparkles size={16} /> Portfolio demo
@@ -511,7 +511,7 @@ function Landing() {
             <button onClick={() => setScreen("create")} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-bold text-slate-950 transition hover:scale-[1.02]">
               <Plus size={18} /> Create a Room
             </button>
-            <button onClick={startDemo} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-5 py-3 font-bold text-white shadow-lg shadow-violet-950/40 transition hover:scale-[1.02]">
+            <button onClick={startDemo} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,#7c3aed,#a855f7_50%,#d946ef)] px-5 py-3 font-bold text-white shadow-lg shadow-violet-950/40 transition hover:scale-[1.02]">
               <Wand2 size={18} /> Start Demo
             </button>
           </div>
@@ -531,16 +531,7 @@ function Landing() {
             </button>
           </form>
         </div>
-        <div className="glass relative overflow-hidden rounded-3xl p-4">
-          <div className="grid gap-4 md:grid-cols-[0.9fr_1.1fr]">
-            <NowPlayingPreview />
-            <div className="grid gap-3">
-              {library.slice(1, 5).map((song, index) => (
-                <MiniSong key={song.id} song={song} votes={5 - index} />
-              ))}
-            </div>
-          </div>
-        </div>
+        <LandingDeviceShowcase />
       </div>
       <div className="grid gap-3 pb-8 text-sm text-slate-300 md:grid-cols-3">
         {["Create or join with a six-character code", "Vote songs up so the best tracks rise", "Use Host or Guest View to test both roles"].map((text) => (
@@ -569,36 +560,58 @@ function CreateRoom() {
           Back
         </button>
       </header>
-      <div className="my-auto py-10">
-        <div className="mb-8">
-          <h1 className="text-4xl font-black">Create a listening room</h1>
-          <p className="mt-3 max-w-xl text-slate-300">Set the mood, decide how much guests can shape the queue, then share the generated room code.</p>
+      <div className="my-auto grid items-center gap-6 py-10 lg:grid-cols-[1fr_0.82fr]">
+        <div>
+          <div className="mb-8">
+            <p className="mb-3 inline-flex rounded-full border border-violet-200/25 bg-violet-400/10 px-3 py-1 text-sm font-bold text-violet-100">Host setup</p>
+            <h1 className="text-4xl font-black">Create a listening room</h1>
+            <p className="mt-3 max-w-xl text-slate-300">Set the mood, decide how much guests can shape the queue, then share the generated room code.</p>
+          </div>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              createRoom({ name, mood, guestsCanAdd, requireApproval });
+            }}
+            className="glass grid gap-6 rounded-3xl p-5 sm:p-7"
+          >
+            <Field label="Room name">
+              <input value={name} onChange={(event) => setName(event.target.value)} required className="w-full rounded-xl border border-white/10 bg-white/8 px-4 py-3 text-white" />
+            </Field>
+            <div className="grid gap-2">
+              <p className="font-bold text-white">Mood or theme</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {["Neon lounge", "Late-night drive", "House party", "Focus flow", "Arcade pop"].map((option) => (
+                  <button key={option} type="button" onClick={() => setMood(option)} className={`rounded-xl border px-3 py-3 text-sm font-bold transition ${mood === option ? "border-violet-200/45 bg-violet-500/25 text-white" : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10"}`}>
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <Toggle label="Guests can add songs" checked={guestsCanAdd} onChange={setGuestsCanAdd} />
+            <Toggle label="Songs require host approval" checked={requireApproval} onChange={setRequireApproval} />
+            <button className="inline-flex items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,#7c3aed,#a855f7_50%,#d946ef)] px-5 py-3 font-black text-white shadow-lg shadow-violet-950/40 transition hover:scale-[1.01]">
+              <Crown size={18} /> Create room
+            </button>
+          </form>
         </div>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            createRoom({ name, mood, guestsCanAdd, requireApproval });
-          }}
-          className="glass grid gap-6 rounded-3xl p-5 sm:p-7"
-        >
-          <Field label="Room name">
-            <input value={name} onChange={(event) => setName(event.target.value)} required className="w-full rounded-xl border border-white/10 bg-white/8 px-4 py-3 text-white" />
-          </Field>
-          <Field label="Mood or theme">
-            <select value={mood} onChange={(event) => setMood(event.target.value)} className="w-full rounded-xl border border-white/10 bg-white/8 px-4 py-3 text-white">
-              <option>Neon lounge</option>
-              <option>Late-night drive</option>
-              <option>House party</option>
-              <option>Focus flow</option>
-              <option>Arcade pop</option>
-            </select>
-          </Field>
-          <Toggle label="Guests can add songs" checked={guestsCanAdd} onChange={setGuestsCanAdd} />
-          <Toggle label="Songs require host approval" checked={requireApproval} onChange={setRequireApproval} />
-          <button className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-bold text-slate-950 transition hover:scale-[1.01]">
-            <Crown size={18} /> Create room
-          </button>
-        </form>
+        <div className="glass rounded-[2rem] p-5">
+          <div className="phone-frame mx-auto max-w-[18rem]">
+            <div className="flex items-center justify-between text-xs font-bold text-white">
+              <span>9:41</span>
+              <span>Host</span>
+            </div>
+            <div className="mt-8">
+              <p className="text-xs uppercase tracking-[0.18em] text-violet-200">Room preview</p>
+              <h2 className="mt-2 truncate text-2xl font-black">{name || "Untitled Room"}</h2>
+              <p className="mt-1 text-sm text-slate-400">{mood}</p>
+              <AlbumArt song={library[3]} large />
+              <div className="mt-5 grid gap-2 text-sm">
+                <p className="rounded-xl bg-white/[0.06] p-3">{guestsCanAdd ? "Guests can add songs" : "Host controls all song adds"}</p>
+                <p className="rounded-xl bg-white/[0.06] p-3">{requireApproval ? "New songs wait for approval" : "Songs enter the queue instantly"}</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -638,16 +651,22 @@ function RoomExperience() {
     <section className="flex min-h-screen w-full overflow-x-hidden">
       <Sidebar />
       <div className="min-w-0 flex-1 px-4 pb-24 pt-4 lg:px-5 lg:pb-5">
-        <TopBar onAbout={() => setAboutOpen(true)} />
-        <div className="mt-4 hidden grid-cols-[minmax(0,1.3fr)_minmax(320px,0.85fr)] gap-4 xl:grid">
-          <div className="grid min-w-0 gap-4">
+        <div className="hidden lg:block">
+          <TopBar onAbout={() => setAboutOpen(true)} />
+        </div>
+        <MobileRoomHeader onAbout={() => setAboutOpen(true)} />
+        <div className="mt-4 hidden grid-cols-[minmax(0,1.05fr)_minmax(420px,1.35fr)_minmax(300px,0.72fr)] gap-4 xl:grid">
+          <div className="grid min-w-0 content-start gap-4">
             <Player />
+          </div>
+          <div className="grid min-w-0 content-start gap-4">
+            <QueuePanel />
             <HostDashboard />
           </div>
-          <div className="grid min-w-0 gap-4">
-            <QueuePanel />
+          <div className="grid min-w-0 content-start gap-4">
             <PeoplePanel />
             <ChatPanel />
+            <FeatureCard />
           </div>
         </div>
         <div className="mt-4 hidden grid-cols-[minmax(0,1fr)_360px] gap-4 lg:grid xl:hidden">
@@ -701,8 +720,11 @@ function TopBar({ onAbout }: { onAbout: () => void }) {
   return (
     <header className="glass flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3">
       <div className="min-w-0">
-        <p className="text-xs uppercase tracking-[0.22em] text-cyan-200">{room?.mood}</p>
-        <h1 className="truncate text-xl font-black text-white">{room?.name}</h1>
+        <h1 className="truncate text-2xl font-black text-white">{room?.name}</h1>
+        <p className="mt-1 flex items-center gap-2 text-sm text-slate-300">
+          <span className="inline-grid h-5 w-5 place-items-center rounded-full bg-violet-400/20 text-[10px] font-black text-violet-100">JR</span>
+          {room?.mood} room
+        </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex rounded-xl border border-white/10 bg-white/[0.04] p-1">
@@ -732,15 +754,86 @@ function TopBar({ onAbout }: { onAbout: () => void }) {
   );
 }
 
-function Sidebar() {
+function MobileRoomHeader({ onAbout }: { onAbout: () => void }) {
+  const room = useJamStore((state) => state.room);
+  const users = useJamStore((state) => state.users);
+  const viewMode = useJamStore((state) => state.viewMode);
+  const setViewMode = useJamStore((state) => state.setViewMode);
+  const startDemo = useJamStore((state) => state.startDemo);
+  const addToast = useJamStore((state) => state.addToast);
+  const invite = `${PROJECT_LINKS.app.replace(/\/$/, "")}?room=${room?.code ?? ""}`;
+
   return (
-    <aside className="sticky top-0 hidden h-screen w-20 shrink-0 border-r border-white/10 bg-slate-950/55 p-4 lg:flex lg:flex-col lg:items-center lg:gap-6">
-      <Logo compact />
-      {[Play, ListMusic, Users, MessageCircle, Settings2].map((Icon, index) => (
-        <button key={index} className="rounded-xl p-3 text-slate-300 transition hover:bg-white/10 hover:text-white" aria-label={`Navigation item ${index + 1}`}>
-          <Icon size={22} />
+    <header className="mb-4 lg:hidden">
+      <div className="mb-3 flex items-center justify-between px-1 text-xs font-bold text-white">
+        <span>9:41</span>
+        <span>{users.filter((user) => user.online).length} online</span>
+      </div>
+      <div className="glass rounded-[1.35rem] p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs text-slate-400">Room</p>
+            <h1 className="truncate text-lg font-black">{room?.name}</h1>
+            <p className="truncate text-xs text-slate-400">Hosted by alex</p>
+          </div>
+          <button onClick={() => copyText(invite, addToast, "Invite link copied")} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-black text-white" aria-label="Copy invite link">
+            {room?.code}
+          </button>
+        </div>
+        <div className="mt-3 grid grid-cols-[1fr_auto_auto] gap-2">
+          <div className="inline-flex rounded-xl border border-white/10 bg-white/[0.04] p-1">
+            {(["host", "guest"] as const).map((mode) => (
+              <button key={mode} onClick={() => setViewMode(mode)} className={`rounded-lg px-3 py-2 text-xs font-black capitalize ${viewMode === mode ? "bg-white text-slate-950" : "text-slate-300"}`}>
+                {mode}
+              </button>
+            ))}
+          </div>
+          <button onClick={startDemo} className="rounded-xl border border-violet-300/25 px-3 py-2 text-xs font-black text-white" aria-label="Start demo mode">
+            Demo
+          </button>
+          <button onClick={onAbout} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-black text-white" aria-label="Open About This Demo">
+            About
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function Sidebar() {
+  const addToast = useJamStore((state) => state.addToast);
+
+  return (
+    <aside className="sticky top-0 hidden h-screen w-[12.25rem] shrink-0 border-r border-white/10 bg-slate-950/70 p-4 lg:flex lg:flex-col lg:gap-5">
+      <Logo />
+      <nav className="mt-3 grid gap-1">
+        {[
+          [Home, "Home"],
+          [ListMusic, "My Rooms"],
+          [Search, "Search"],
+          [MessageCircle, "Messages"],
+          [Users, "Profile"]
+        ].map(([Icon, label], index) => (
+          <button key={String(label)} onClick={() => index > 0 && addToast(`${label} is a portfolio demo placeholder.`)} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition ${index === 1 ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/10 hover:text-white"}`} aria-label={String(label)}>
+            <Icon size={18} />
+            {String(label)}
+          </button>
+        ))}
+      </nav>
+      <div className="mt-auto grid gap-3">
+        <button onClick={() => addToast("Settings are simulated for this portfolio demo.")} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-300 hover:bg-white/10 hover:text-white" aria-label="Settings">
+          <Settings2 size={18} /> Settings
         </button>
-      ))}
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+          <div className="flex items-center gap-3">
+            <Avatar user={mockUsers[0]} small />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold">alex</p>
+              <p className="text-xs text-green-200">Online</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </aside>
   );
 }
@@ -766,14 +859,16 @@ function Player() {
 
   return (
     <section className="glass relative overflow-hidden rounded-3xl p-4 sm:p-6">
-      <div className="grid gap-6 lg:grid-cols-[minmax(260px,0.8fr)_1fr]">
+      <div className="absolute inset-x-0 top-0 h-32 bg-[linear-gradient(180deg,rgba(168,85,247,0.16),transparent)]" />
+      <div className="relative grid gap-6 lg:grid-cols-[minmax(220px,0.72fr)_1fr] xl:grid-cols-1">
         <AlbumArt song={current} large />
         <div className="min-w-0 self-center">
-          <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-green-300/20 bg-green-300/10 px-3 py-1 text-sm text-green-100">
-            <Mic2 size={15} /> Simulated synced playback
+          <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-green-300/20 bg-green-300/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-green-100">
+            <Mic2 size={15} /> Now playing
           </p>
-          <h2 className="truncate text-4xl font-black sm:text-5xl">{current?.title ?? "Queue is empty"}</h2>
+          <h2 className="truncate text-3xl font-black sm:text-4xl">{current?.title ?? "Queue is empty"}</h2>
           <p className="mt-2 truncate text-lg text-slate-300">{current ? `${current.artist} • ${current.album}` : "Add a song to start listening together."}</p>
+          <p className="mt-1 text-sm text-slate-500">Simulated synced playback</p>
           <div className="mt-6">
             <input aria-label="Playback progress" type="range" min="0" max="100" value={progress} onChange={(event) => setProgress(Number(event.target.value))} className="range w-full" />
             <div className="mt-2 flex justify-between text-xs text-slate-400">
@@ -781,7 +876,7 @@ function Player() {
               <span>{formatTime(current?.duration ?? 0)}</span>
             </div>
           </div>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
             <IconButton active={shuffle} label="Shuffle queue" onClick={toggleShuffle}>
               <Shuffle size={20} />
             </IconButton>
@@ -801,7 +896,7 @@ function Player() {
           </div>
           <div className="mt-6 flex flex-wrap items-center gap-2">
             {["🔥", "💜", "✨", "🙌", "⚡"].map((emoji) => (
-              <button key={emoji} onClick={() => addReaction(emoji)} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xl transition hover:scale-105 hover:bg-white/10" aria-label={`React ${emoji}`}>
+              <button key={emoji} onClick={() => addReaction(emoji)} className="h-12 min-w-12 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-xl shadow-sm transition hover:scale-105 hover:bg-white/10" aria-label={`React ${emoji}`}>
                 {emoji}
               </button>
             ))}
@@ -836,7 +931,10 @@ function QueuePanel() {
     <section className="panel rounded-2xl p-4">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-black">Shared queue</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-black">Queue</h2>
+            <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-black">{queue.length}</span>
+          </div>
           <p className="text-sm text-slate-400">Upcoming tracks auto-sort by vote count.</p>
         </div>
         <ListMusic className="text-violet-200" />
@@ -867,7 +965,8 @@ function QueuePanel() {
       <div className="grid max-h-[560px] gap-3 overflow-y-auto pr-1">
         {queue.length === 0 && <EmptyState icon={<ListMusic />} title="No songs yet" text="Search the mock library or paste a demo link to add the first track." />}
         {queue.map((song, index) => (
-          <div key={song.queueId} className={`grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border p-2 ${song.queueId === currentSongId ? "border-violet-300/35 bg-violet-300/10" : "border-white/10 bg-white/[0.035]"}`}>
+          <div key={song.queueId} className={`grid grid-cols-[1.25rem_3.5rem_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border p-2 ${song.queueId === currentSongId ? "border-violet-300/35 bg-white/[0.075]" : "border-white/10 bg-white/[0.025]"}`}>
+            <span className="text-center text-xs text-slate-500">{index + 1}</span>
             <AlbumArt song={song} />
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-2">
@@ -930,7 +1029,7 @@ function PeoplePanel() {
       <div className="grid gap-2">
         {users.length === 0 && <EmptyState icon={<Users />} title="No one is in the room yet" text="Invite friends or start Demo Mode to see the room feel alive." />}
         {users.map((user) => (
-          <div key={user.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-3">
+          <div key={user.id} className="flex items-center gap-3 rounded-xl border border-white/8 bg-transparent p-2.5 transition hover:bg-white/[0.04]">
             <Avatar user={user} />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
@@ -974,10 +1073,11 @@ function ChatPanel() {
         {chat.length === 0 && <EmptyState icon={<MessageCircle />} title="Chat is quiet" text="Send the first message or start Demo Mode to load a realistic conversation." />}
         {chat.map((messageItem) => {
           const user = users.find((item) => item.id === messageItem.userId);
+          const isYou = messageItem.userId === "you";
           return (
-            <div key={messageItem.id} className={`flex gap-3 ${messageItem.system ? "rounded-xl bg-white/[0.035] p-3 text-sm text-slate-300" : ""}`}>
+            <div key={messageItem.id} className={`flex gap-3 ${isYou ? "justify-end" : ""} ${messageItem.system ? "rounded-xl bg-white/[0.035] p-3 text-sm text-slate-300" : ""}`}>
               {!messageItem.system && user && <Avatar user={user} small />}
-              <div className="min-w-0">
+              <div className={`min-w-0 ${!messageItem.system ? `max-w-[82%] rounded-2xl px-3 py-2 ${isYou ? "bg-violet-500/35 text-white" : "bg-white/[0.06]"}` : ""}`}>
                 {!messageItem.system && (
                   <p className="text-sm font-bold">
                     {user?.name ?? "Guest"} <span className="font-normal text-slate-500">{messageItem.time}</span>
@@ -1008,6 +1108,7 @@ function HostDashboard() {
   const room = useJamStore((state) => state.room);
   const queue = useJamStore((state) => state.queue);
   const currentSongId = useJamStore((state) => state.currentSongId);
+  const progress = useJamStore((state) => state.progress);
   const volume = useJamStore((state) => state.volume);
   const isPlaying = useJamStore((state) => state.isPlaying);
   const togglePlay = useJamStore((state) => state.togglePlay);
@@ -1034,37 +1135,61 @@ function HostDashboard() {
 
   return (
     <section className="panel rounded-2xl p-4">
-      <div className="mb-4 flex items-center gap-2">
-        <Gauge className="text-cyan-200" />
-        <h2 className="text-xl font-black">Host dashboard</h2>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Gauge className="text-cyan-200" />
+          <h2 className="text-xl font-black">Host dashboard</h2>
+        </div>
+        <span className="rounded-full bg-violet-400/20 px-3 py-1 text-xs font-black text-violet-100">Host</span>
       </div>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.05fr_0.85fr_1.1fr]">
         <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
-          <p className="text-sm text-slate-400">Now controlling</p>
-          <p className="mt-1 truncate font-black">{current?.title ?? "Nothing playing"}</p>
-          <div className="mt-4 flex gap-2">
-            <IconButton label={isPlaying ? "Pause" : "Play"} onClick={togglePlay}>{isPlaying ? <Pause size={18} /> : <Play size={18} />}</IconButton>
-            <IconButton label="Skip" onClick={skipSong}><SkipForward size={18} /></IconButton>
+          <p className="text-sm font-bold text-slate-300">Playback</p>
+          <div className="mt-4 flex items-center gap-3">
+            <AlbumArt song={current} />
+            <div className="min-w-0">
+              <p className="truncate font-black">{current?.title ?? "Nothing playing"}</p>
+              <p className="truncate text-sm text-slate-400">{current?.artist ?? "Add a song to begin"}</p>
+            </div>
+          </div>
+          <input aria-label="Host playback progress" value={progress} readOnly type="range" min="0" max="100" className="range mt-4 w-full" />
+          <div className="mt-4 flex items-center justify-center gap-3">
+            <IconButton label={isPlaying ? "Pause playback" : "Play playback"} onClick={togglePlay}>{isPlaying ? <Pause size={18} /> : <Play size={18} />}</IconButton>
+            <IconButton label="Skip song" onClick={skipSong}><SkipForward size={18} /></IconButton>
           </div>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
-          <p className="text-sm text-slate-400">Queue controls</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button onClick={shuffleQueue} className="rounded-lg border border-white/10 px-3 py-2 text-sm font-bold hover:bg-white/10">Shuffle</button>
-            <button onClick={clearQueue} className="rounded-lg border border-white/10 px-3 py-2 text-sm font-bold hover:bg-white/10">Clear</button>
+          <p className="text-sm font-bold text-slate-300">Controls</p>
+          <div className="mt-4 grid gap-2">
+            <button onClick={togglePlay} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold hover:bg-white/10">{isPlaying ? <Pause size={15} /> : <Play size={15} />} {isPlaying ? "Pause playback" : "Play playback"}</button>
+            <button onClick={skipSong} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold hover:bg-white/10"><SkipForward size={15} /> Skip song</button>
+            <button onClick={clearQueue} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold hover:bg-white/10"><Trash2 size={15} /> Clear queue</button>
+            <button onClick={shuffleQueue} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold hover:bg-white/10"><Shuffle size={15} /> Shuffle queue</button>
           </div>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
-          <p className="text-sm text-slate-400">Room code</p>
-          <p className="mt-1 text-2xl font-black tracking-[0.24em]">{room?.code}</p>
-          <button onClick={() => copyText(`${PROJECT_LINKS.app.replace(/\/$/, "")}?room=${room?.code ?? ""}`, addToast, "Invitation copied")} className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-cyan-100"><Copy size={15} /> Copy invitation link</button>
-        </div>
-        <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
-          <p className="text-sm text-slate-400">Volume</p>
-          <input aria-label="Host volume control" value={volume} onChange={(event) => setVolume(Number(event.target.value))} type="range" min="0" max="100" className="range mt-5 w-full" />
+          <p className="text-sm font-bold text-slate-300">Room info</p>
+          <div className="mt-4 grid gap-3">
+            <div>
+              <p className="text-xs text-slate-500">Room code</p>
+              <button onClick={() => copyText(room?.code ?? "", addToast, "Room code copied")} className="mt-1 flex w-full items-center justify-between rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-left font-black tracking-[0.18em]">
+                {room?.code}<Copy size={15} className="tracking-normal text-slate-400" />
+              </button>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">Invite link</p>
+              <button onClick={() => copyText(`${PROJECT_LINKS.app.replace(/\/$/, "")}?room=${room?.code ?? ""}`, addToast, "Invitation copied")} className="mt-1 flex w-full items-center justify-between rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-left text-xs text-slate-300">
+                jamroom.app/{room?.code}<Copy size={15} className="text-slate-400" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
+      <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_1fr]">
+        <label className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.035] p-4">
+          <span className="font-bold text-white">Volume</span>
+          <span className="w-24"><input aria-label="Host volume control" value={volume} onChange={(event) => setVolume(Number(event.target.value))} type="range" min="0" max="100" className="range w-full" /></span>
+        </label>
         <Toggle label="Guests can add songs" checked={Boolean(room?.guestsCanAdd)} onChange={() => toggleSetting("guestsCanAdd")} />
         <Toggle label="Require song approval" checked={Boolean(room?.requireApproval)} onChange={() => toggleSetting("requireApproval")} />
         <button onClick={endRoom} className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-300/25 bg-rose-400/10 px-4 py-3 font-bold text-rose-100 hover:bg-rose-400/15">
@@ -1264,6 +1389,78 @@ function NowPlayingPreview() {
         <div className="h-full w-2/3 rounded-full bg-gradient-to-r from-violet-400 to-cyan-300" />
       </div>
     </div>
+  );
+}
+
+function LandingDeviceShowcase() {
+  return (
+    <div className="relative min-h-[34rem] overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/45 p-5 shadow-2xl shadow-black/40">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(168,85,247,0.26),transparent_20rem)]" />
+      <div className="relative grid h-full items-center gap-5 md:grid-cols-[0.82fr_1fr]">
+        <div className="phone-frame mx-auto w-full max-w-[17rem]">
+          <div className="flex items-center justify-between text-xs text-white">
+            <span>9:41</span>
+            <span>5G</span>
+          </div>
+          <div className="mt-10 grid place-items-center text-center">
+            <div className="artwork mb-7 grid h-32 w-32 place-items-center rounded-[2rem]" style={{ "--from": "#7c3aed", "--via": "#d946ef", "--to": "#22d3ee" } as React.CSSProperties}>
+              <ListMusic size={54} className="text-white drop-shadow-xl" />
+            </div>
+            <h3 className="text-3xl font-black">
+              Jam<span className="text-violet-300">Room</span>
+            </h3>
+            <p className="mt-3 max-w-[12rem] text-sm leading-6 text-slate-300">One room. Everyone&apos;s music. Listen together.</p>
+          </div>
+          <div className="mt-10 grid gap-3">
+            <div className="rounded-xl bg-[linear-gradient(135deg,#7c3aed,#a855f7)] px-4 py-3 text-center text-sm font-black">Create a Room</div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-center text-sm font-bold">Join a Room</div>
+          </div>
+        </div>
+        <div className="glass rounded-[1.75rem] p-4">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-violet-200">Weekend Vibes</p>
+              <h3 className="text-2xl font-black">Friday Night Jam</h3>
+            </div>
+            <div className="rounded-full bg-white/10 px-3 py-1 text-sm font-black">8</div>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-[0.75fr_1fr]">
+            <NowPlayingPreview />
+            <div className="grid gap-3">
+              {library.slice(1, 6).map((song, index) => (
+                <MiniSong key={song.id} song={song} votes={12 - index * 2} />
+              ))}
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            {["People", "Chat", "Host controls"].map((item) => (
+              <div key={item} className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-sm font-bold text-slate-200">{item}</div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FeatureCard() {
+  return (
+    <section className="panel overflow-hidden rounded-2xl p-5">
+      <div className="artwork mb-6 grid h-28 place-items-center rounded-2xl" style={{ "--from": "#2e1065", "--via": "#7c3aed", "--to": "#111827" } as React.CSSProperties}>
+        <Users size={46} className="text-violet-100" />
+      </div>
+      <div className="grid gap-3 text-sm text-slate-200">
+        {["Real-time synced playback", "Shared queue", "Reactions and chat", "Host controls", "Invite anyone"].map((feature) => (
+          <p key={feature} className="flex items-center gap-3">
+            <span className="h-1.5 w-1.5 rounded-full bg-violet-300" />
+            {feature}
+          </p>
+        ))}
+      </div>
+      <p className="mt-8 text-2xl font-black leading-tight text-violet-300">
+        One room.<br />Everyone&apos;s music.<br />Listen together.
+      </p>
+    </section>
   );
 }
 
