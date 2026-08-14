@@ -3,6 +3,7 @@
 import {
   ChevronDown,
   ChevronUp,
+  Clock3,
   Copy,
   Crown,
   Gauge,
@@ -14,26 +15,30 @@ import {
   LogOut,
   MessageCircle,
   Mic2,
+  MoreVertical,
+  Music2,
   Pause,
   Play,
   Plus,
+  Radio,
   Repeat2,
   RotateCcw,
   Search,
   Send,
   Settings2,
+  ShieldCheck,
   Shuffle,
   SkipForward,
-  SlidersHorizontal,
   Sparkles,
   Trash2,
   UserMinus,
   Users,
   Volume2,
+  Wifi,
   Wand2,
   X
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -48,13 +53,64 @@ type Song = {
   album: string;
   duration: number;
   cover: [string, string, string];
+  sourceId?: string;
+  sourceUrl?: string;
+  sourceProvider?: "YouTube" | "Spotify" | "Apple Music" | "SoundCloud" | "Music Link";
+  embedUrl?: string;
 };
+
+type YouTubePlayer = {
+  playVideo: () => void;
+  pauseVideo: () => void;
+  seekTo: (seconds: number, allowSeekAhead: boolean) => void;
+  getCurrentTime: () => number;
+  getDuration: () => number;
+  setVolume: (volume: number) => void;
+  destroy: () => void;
+};
+
+type YouTubeControls = {
+  play: () => void;
+  pause: () => void;
+  seekPercent: (percent: number) => void;
+  setVolume: (volume: number) => void;
+};
+
+type YouTubeApi = {
+  Player: new (
+    element: HTMLElement,
+    options: {
+      videoId: string;
+      playerVars?: Record<string, number | string>;
+      events?: {
+        onReady?: (event: { target: YouTubePlayer }) => void;
+        onStateChange?: (event: { data: number; target: YouTubePlayer }) => void;
+        onError?: () => void;
+      };
+    }
+  ) => YouTubePlayer;
+  PlayerState: {
+    PLAYING: number;
+    PAUSED: number;
+    ENDED: number;
+  };
+};
+
+declare global {
+  interface Window {
+    YT?: YouTubeApi;
+    onYouTubeIframeAPIReady?: () => void;
+    jamroomYouTubeApiReady?: Promise<YouTubeApi>;
+  }
+}
 
 type QueueSong = Song & {
   queueId: string;
   addedBy: string;
   votes: number;
   approved: boolean;
+  userVote?: 1 | -1;
+  unavailable?: boolean;
 };
 
 type User = {
@@ -83,6 +139,7 @@ type Room = {
   guestsCanAdd: boolean;
   requireApproval: boolean;
   ended: boolean;
+  demoRunId?: string;
 };
 
 type Toast = {
@@ -135,31 +192,54 @@ type JamState = {
   dismissToast: (id: string) => void;
 };
 
+type PersistedJamState = Pick<
+  JamState,
+  "screen" | "viewMode" | "mobileTab" | "room" | "queue" | "users" | "chat" | "currentSongId" | "isPlaying" | "progress" | "volume" | "repeat" | "shuffle"
+>;
+
 const PROJECT_LINKS = {
   github: process.env.NEXT_PUBLIC_GITHUB_URL || "#",
   portfolio: process.env.NEXT_PUBLIC_PORTFOLIO_URL || "#",
   app: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
 };
 
-const DEMO_INTRO_STORAGE_KEY = "jamroom-demo-intro-dismissed";
+const PERSISTED_STATE_VERSION = 4;
+
+const buttonStyles = {
+  primary: "btn btn-primary",
+  secondary: "btn btn-secondary",
+  neutral: "btn btn-neutral",
+  ghost: "btn btn-ghost",
+  icon: "btn-icon",
+  destructive: "btn btn-destructive"
+};
+
+const inputStyles = {
+  base: "input-control",
+  error: "input-control input-error"
+};
+
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
 
 const library: Song[] = [
-  { id: "aurora", title: "Aurora Circuit", artist: "Nova Saint", album: "Midnight Arcade", duration: 224, cover: ["#8b5cf6", "#ec4899", "#22d3ee"] },
-  { id: "velvet", title: "Velvet Satellite", artist: "Mira Vale", album: "Orbital Bloom", duration: 198, cover: ["#f43f5e", "#7c3aed", "#111827"] },
-  { id: "neon", title: "Neon Undertow", artist: "Glass Harbor", album: "Low Tide Lights", duration: 242, cover: ["#06b6d4", "#2563eb", "#111827"] },
-  { id: "pulse", title: "Pulse Check", artist: "The Afterparty", album: "Late Checkout", duration: 187, cover: ["#f59e0b", "#ef4444", "#3b0764"] },
-  { id: "loft", title: "Loft Windows", artist: "June Static", album: "City Room", duration: 215, cover: ["#10b981", "#0f766e", "#172554"] },
-  { id: "swerve", title: "Swerve Theory", artist: "Kito Park", album: "Fast Friends", duration: 176, cover: ["#a855f7", "#4f46e5", "#020617"] },
+  { id: "daydreams", title: "Daydreams", artist: "Miami Dusk", album: "Neon Drive", duration: 215, cover: ["#7c3aed", "#ec4899", "#0ea5e9"] },
+  { id: "midnight", title: "Midnight Glow", artist: "Luna Waves", album: "Purple Hour", duration: 182, cover: ["#3b0764", "#7c3aed", "#fb7185"] },
+  { id: "ocean", title: "Ocean Drive", artist: "Coastal Club", album: "After Sunset", duration: 165, cover: ["#0ea5e9", "#2563eb", "#020617"] },
+  { id: "sleepless", title: "Sleepless Nights", artist: "Kyoto Coast", album: "City Lights", duration: 192, cover: ["#f97316", "#be123c", "#312e81"] },
+  { id: "better", title: "Better Together", artist: "The Brights", album: "Room Tone", duration: 208, cover: ["#10b981", "#7c3aed", "#172554"] },
+  { id: "afterimage", title: "Afterimage", artist: "Sable Room", album: "Violet Hour", duration: 231, cover: ["#d946ef", "#9333ea", "#0f172a"] },
   { id: "solstice", title: "Solstice Drive", artist: "North Runner", album: "Open Roads", duration: 268, cover: ["#f97316", "#be123c", "#312e81"] },
   { id: "glimmer", title: "Glimmer Mode", artist: "Pixel Choir", album: "Shared Screen", duration: 203, cover: ["#38bdf8", "#8b5cf6", "#1e1b4b"] },
-  { id: "after", title: "Afterimage", artist: "Sable Room", album: "Violet Hour", duration: 231, cover: ["#d946ef", "#9333ea", "#0f172a"] },
+  { id: "golden", title: "Golden Hourline", artist: "Sable Room", album: "Violet Hour", duration: 231, cover: ["#d946ef", "#9333ea", "#0f172a"] },
   { id: "signal", title: "Signal Bloom", artist: "The Relay", album: "Everyone Online", duration: 192, cover: ["#84cc16", "#14b8a6", "#172554"] },
   { id: "mono", title: "Monorail Hearts", artist: "Luca Drift", album: "Transit Dreams", duration: 209, cover: ["#fb7185", "#facc15", "#0f172a"] },
   { id: "static", title: "Static Jubilee", artist: "Echo Vale", album: "Room Tone", duration: 254, cover: ["#6366f1", "#0ea5e9", "#020617"] }
 ];
 
 const mockUsers: User[] = [
-  { id: "you", name: "You", role: "host", avatar: "YO", color: "#9a6cff", online: true, listening: true },
+  { id: "you", name: "Alex", role: "host", avatar: "AL", color: "#9a6cff", online: true, listening: true },
   { id: "sarah", name: "Sarah", role: "guest", avatar: "SA", color: "#49d9ff", online: true, listening: true },
   { id: "mike", name: "Mike", role: "guest", avatar: "MI", color: "#5ee5a1", online: true, listening: true },
   { id: "jules", name: "Jules", role: "guest", avatar: "JU", color: "#e65cff", online: true, listening: true },
@@ -170,11 +250,12 @@ const mockUsers: User[] = [
 ];
 
 const demoChat: ChatMessage[] = [
-  { id: "c1", userId: "system", text: "Sarah joined the room", time: "8:04 PM", reactions: [], system: true },
-  { id: "c2", userId: "sarah", text: "This queue already has main character energy.", time: "8:05 PM", reactions: ["🔥"] },
-  { id: "c3", userId: "mike", text: "Adding something with a bigger chorus next.", time: "8:06 PM", reactions: [] },
-  { id: "c4", userId: "system", text: "Mike added Pulse Check", time: "8:06 PM", reactions: [], system: true },
-  { id: "c5", userId: "jules", text: "Vote Glimmer Mode up, trust me.", time: "8:07 PM", reactions: ["💜", "✨"] }
+  { id: "c1", userId: "system", text: "Weekend Vibes is live", time: "8:04 PM", reactions: [], system: true },
+  { id: "c2", userId: "sarah", text: "This opener is perfect for the drive home 🔥", time: "8:05 PM", reactions: ["🔥"] },
+  { id: "c3", userId: "mike", text: "Ocean Drive should sit right after Midnight Glow.", time: "8:06 PM", reactions: [] },
+  { id: "c4", userId: "system", text: "Mike added Ocean Drive", time: "8:06 PM", reactions: [], system: true },
+  { id: "c5", userId: "jules", text: "Vote Midnight Glow up next?", time: "8:07 PM", reactions: ["💜"] },
+  { id: "c6", userId: "you", text: "Welcome in. Add a track, vote, or switch to Guest view.", time: "8:08 PM", reactions: ["✨"] }
 ];
 
 const emptyChat: ChatMessage[] = [
@@ -182,16 +263,34 @@ const emptyChat: ChatMessage[] = [
 ];
 
 const makeCode = () => Math.random().toString(36).slice(2, 8).toUpperCase();
+const normalizeRoomCode = (value: string) => value.replace(/\s+/g, "").toUpperCase().slice(0, 6);
 const nowTime = () => new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 const guestAdderIds = ["sarah", "mike", "jules", "kenji", "maya", "ari"];
+const mobileNavItems: { tab: MobileTab; icon: typeof Play; label: string }[] = [
+  { tab: "player", icon: Play, label: "Player" },
+  { tab: "queue", icon: ListMusic, label: "Queue" },
+  { tab: "people", icon: Users, label: "People" },
+  { tab: "chat", icon: MessageCircle, label: "Chat" }
+];
 
 const createQueueItem = (song: Song, index: number, addedBy = "you", approved = true): QueueSong => ({
   ...song,
   queueId: `${song.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}-${index}`,
   addedBy,
-  votes: index === 0 ? 4 : Math.max(-1, 5 - index),
+  votes: song.sourceUrl ? 8 : index === 0 ? 4 : Math.max(-1, 5 - index),
   approved
 });
+
+const createDemoQueue = () => {
+  const demoVotes = [18, 14, 11, 8, 6, 5, 3, 2];
+  const demoAdders = ["you", "sarah", "mike", "jules", "kenji", "maya", "ari", "sarah"];
+
+  return library.slice(0, 8).map((song, index) => ({
+    ...createQueueItem(song, index, demoAdders[index], true),
+    votes: demoVotes[index],
+    userVote: index === 1 ? (1 as const) : undefined
+  }));
+};
 
 const sortedQueue = (queue: QueueSong[], currentSongId: string | null) => {
   if (!queue.length || !currentSongId) return queue;
@@ -201,6 +300,28 @@ const sortedQueue = (queue: QueueSong[], currentSongId: string | null) => {
     .sort((a, b) => Number(b.approved) - Number(a.approved) || b.votes - a.votes);
   return current ? [current, ...upcoming] : upcoming;
 };
+
+const freshPersistedState = (): PersistedJamState => ({
+  screen: "landing",
+  viewMode: "host",
+  mobileTab: "player",
+  room: null,
+  queue: [],
+  users: [mockUsers[0]],
+  chat: [],
+  currentSongId: null,
+  isPlaying: false,
+  progress: 0,
+  volume: 72,
+  repeat: false,
+  shuffle: false
+});
+
+const freshJamState = (): Partial<JamState> => ({
+  ...freshPersistedState(),
+  reactions: [],
+  toasts: []
+});
 
 const useJamStore = create<JamState>()(
   persist(
@@ -237,10 +358,10 @@ const useJamStore = create<JamState>()(
           isPlaying: true,
           progress: 0
         });
-        get().addToast("Room created");
+        get().addToast("Room created. You’re hosting now.");
       },
       joinRoom: (code) => {
-        const cleanCode = code.trim().toUpperCase();
+        const cleanCode = normalizeRoomCode(code);
         if (!cleanCode) {
           get().addToast("Enter a room code first");
           return false;
@@ -269,22 +390,23 @@ const useJamStore = create<JamState>()(
           isPlaying: true,
           progress: 18
         });
-        get().addToast("Joined room");
+        get().addToast("Joined room as guest.");
         return true;
       },
       startDemo: () => {
-        const queue = library.slice(0, 8).map((song, index) => createQueueItem(song, index, guestAdderIds[index % guestAdderIds.length], true));
+        const queue = createDemoQueue();
         set({
           screen: "room",
           viewMode: "host",
           mobileTab: "player",
           room: {
-            name: "Friday Night Jam",
+            name: "Weekend Vibes",
             code: "JAM247",
             mood: "Neon lounge",
             guestsCanAdd: true,
             requireApproval: false,
-            ended: false
+            ended: false,
+            demoRunId: `demo-${Date.now()}`
           },
           queue,
           users: mockUsers,
@@ -295,27 +417,18 @@ const useJamStore = create<JamState>()(
           volume: 78,
           repeat: false,
           shuffle: false,
-          reactions: ["🔥", "💜", "✨"]
+          reactions: ["🔥", "💜", "✨"],
+          toasts: []
         });
-        get().addToast("Demo loaded. Try switching between Host and Guest views.");
+        get().addToast("Live demo room loaded with simulated activity.");
       },
-      resetDemo: () =>
+      resetDemo: () => {
         set({
-          screen: "landing",
-          viewMode: "host",
-          mobileTab: "player",
-          room: null,
-          queue: [],
-          users: [mockUsers[0]],
-          chat: [],
-          currentSongId: null,
-          isPlaying: false,
-          progress: 0,
-          repeat: false,
-          shuffle: false,
-          volume: 72,
-          reactions: []
-        }),
+          ...freshJamState(),
+          toasts: []
+        });
+        get().addToast("JamRoom reset to the current build.");
+      },
       addSong: (song, addedBy = get().viewMode === "host" ? "you" : "sarah") => {
         const room = get().room;
         if (get().viewMode === "guest" && room && !room.guestsCanAdd) {
@@ -360,7 +473,12 @@ const useJamStore = create<JamState>()(
         get().addToast("Song removed");
       },
       voteSong: (queueId, delta) => {
-        const queue = get().queue.map((item) => (item.queueId === queueId ? { ...item, votes: item.votes + delta } : item));
+        const queue = get().queue.map((item) => {
+          if (item.queueId !== queueId) return item;
+          const previousVote = item.userVote ?? 0;
+          const nextVote = previousVote === delta ? 0 : delta;
+          return { ...item, votes: item.votes - previousVote + nextVote, userVote: nextVote === 0 ? undefined : nextVote };
+        });
         set({ queue: sortedQueue(queue, get().currentSongId) });
       },
       moveSong: (queueId, direction) => {
@@ -439,6 +557,11 @@ const useJamStore = create<JamState>()(
     }),
     {
       name: "jamroom-demo-state",
+      version: PERSISTED_STATE_VERSION,
+      migrate: (persistedState, version) => {
+        if (version < PERSISTED_STATE_VERSION) return freshPersistedState();
+        return persistedState as PersistedJamState;
+      },
       partialize: (state) => ({
         screen: state.screen,
         viewMode: state.viewMode,
@@ -482,115 +605,279 @@ export default function JamRoomApp() {
 
 function Landing() {
   const [code, setCode] = useState("");
+  const [joinError, setJoinError] = useState("");
+  const [isJoining, setIsJoining] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const setScreen = useJamStore((state) => state.setScreen);
   const joinRoom = useJamStore((state) => state.joinRoom);
   const startDemo = useJamStore((state) => state.startDemo);
+  const submitJoin = () => {
+    const cleanCode = normalizeRoomCode(code);
+    setCode(cleanCode);
+    if (!cleanCode) {
+      setJoinError("Enter the 6-character room code.");
+      return;
+    }
+    if (cleanCode.length !== 6) {
+      setJoinError("Room codes are 6 letters or numbers.");
+      return;
+    }
+    setJoinError("");
+    setIsJoining(true);
+    const joined = joinRoom(cleanCode);
+    if (!joined) setIsJoining(false);
+  };
 
   return (
-    <section className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-5 py-6 sm:px-8">
-      <header className="flex items-center justify-between gap-4">
+    <section className="landing-stage mx-auto flex min-h-screen w-full max-w-[96rem] flex-col px-4 py-4 sm:px-6">
+      <header className="relative z-10 flex items-center justify-between gap-4">
         <Logo />
-        <div className="text-right">
-          <p className="mb-1 text-xs font-bold uppercase tracking-[0.16em] text-cyan-200">Best way to explore</p>
-          <button onClick={startDemo} className="rounded-full border border-violet-200/40 bg-gradient-to-r from-violet-500 to-fuchsia-500 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-violet-950/40 transition hover:scale-[1.02]">
-            Demo Mode
+        <div className="flex items-center gap-2">
+          <button onClick={() => setAboutOpen(true)} className={buttonStyles.ghost}>
+            About This Demo
+          </button>
+          <button onClick={startDemo} className={`${buttonStyles.primary} hidden sm:inline-flex`}>
+            Start Demo
           </button>
         </div>
       </header>
-      <div className="grid flex-1 items-center gap-10 py-12 lg:grid-cols-[0.92fr_1.08fr]">
-        <div className="max-w-2xl">
-          <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-sm text-cyan-100">
-            <Sparkles size={16} /> Portfolio demo
+
+      <div className="relative mt-4 grid flex-1 overflow-hidden rounded-[1.8rem] border border-white/10 bg-slate-950/45 px-5 py-7 shadow-2xl shadow-black/35 sm:px-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(24rem,1.08fr)] lg:items-center lg:gap-10 lg:py-12">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(154,108,255,0.24),transparent_24rem),radial-gradient(circle_at_86%_24%,rgba(73,217,255,0.12),transparent_22rem)]" />
+        <div className="relative z-10 max-w-2xl py-3 text-left lg:py-8">
+          <p className="badge badge-primary mb-4">
+            <Sparkles size={15} /> Best way to explore
           </p>
-          <h1 className="text-5xl font-black tracking-normal text-white sm:text-6xl lg:text-7xl">JamRoom</h1>
-          <p className="mt-5 max-w-xl text-2xl font-semibold leading-tight text-white/88">One room. Everyone&apos;s music. Listen together.</p>
-          <p className="mt-5 max-w-xl text-base leading-7 text-slate-300">
-            Create a shared listening room, invite friends with a code, build a queue together, react in the moment, and chat while the simulated player stays in sync.
+          <h1 className="text-5xl font-black leading-[0.95] tracking-normal text-white sm:text-6xl lg:text-7xl">
+            Jam<span className="text-violet-300">Room</span>
+          </h1>
+          <p className="mt-5 max-w-xl text-balance text-3xl font-black leading-tight text-white sm:text-4xl">
+            One room. Everyone&apos;s music. Listen together.
           </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <button onClick={() => setScreen("create")} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-bold text-slate-950 transition hover:scale-[1.02]">
-              <Plus size={18} /> Create a Room
+          <p className="mt-5 max-w-lg text-base leading-7 text-slate-300 sm:text-lg">
+            Start a shared music room where friends vote on the queue, chat, react, and keep the vibe moving in sync.
+          </p>
+
+          <div className="mt-8 grid gap-3 sm:max-w-xl sm:grid-cols-[1.15fr_0.85fr]">
+            <button onClick={startDemo} className={`${buttonStyles.primary} min-h-16 rounded-2xl px-6 py-4 text-lg`}>
+              <Play size={21} fill="currentColor" /> Start Demo
             </button>
-            <button onClick={startDemo} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,#7c3aed,#a855f7_50%,#d946ef)] px-5 py-3 font-bold text-white shadow-lg shadow-violet-950/40 transition hover:scale-[1.02]">
-              <Wand2 size={18} /> Start Demo
+            <button onClick={() => setScreen("create")} className={`${buttonStyles.secondary} min-h-16 rounded-2xl px-5 py-4`}>
+              <Users size={18} /> Create a Room
             </button>
           </div>
+
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              joinRoom(code);
+              submitJoin();
             }}
-            className="mt-5 flex max-w-lg flex-col gap-3 sm:flex-row"
+            className={`mt-4 grid max-w-xl gap-2 rounded-2xl border bg-white/[0.035] p-2 transition sm:grid-cols-[1fr_auto] ${joinError ? "border-rose-300/40" : "border-white/10"}`}
           >
             <label className="sr-only" htmlFor="room-code">
               Enter room code
             </label>
-            <input id="room-code" value={code} onChange={(event) => setCode(event.target.value)} placeholder="Enter room code" className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/8 px-4 py-3 text-white placeholder:text-slate-500" />
-            <button className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-5 py-3 font-bold text-white transition hover:bg-white/10">
-              <Link2 size={18} /> Join a Room
+            <div className="min-w-0">
+              <input
+                id="room-code"
+                value={code}
+                onChange={(event) => {
+                  setCode(normalizeRoomCode(event.target.value));
+                  if (joinError) setJoinError("");
+                }}
+                placeholder="Enter room code"
+                maxLength={6}
+                inputMode="text"
+                autoCapitalize="characters"
+                autoComplete="off"
+                aria-invalid={Boolean(joinError)}
+                aria-describedby={joinError ? "room-code-error" : undefined}
+                className={`${inputStyles.base} border-transparent bg-transparent font-bold uppercase tracking-[0.12em] placeholder:normal-case placeholder:tracking-normal`}
+              />
+              {joinError && <p id="room-code-error" className="px-3 pb-1 text-xs font-bold text-rose-100">{joinError}</p>}
+            </div>
+            <button disabled={isJoining} className={`${buttonStyles.neutral} min-h-12 px-5 py-3`}>
+              <Link2 size={16} /> {isJoining ? "Joining..." : "Join a Room"}
             </button>
           </form>
-        </div>
-        <LandingDeviceShowcase />
-      </div>
-      <div className="grid gap-3 pb-8 text-sm text-slate-300 md:grid-cols-3">
-        {["Create or join with a six-character code", "Vote songs up so the best tracks rise", "Use Host or Guest View to test both roles"].map((text) => (
-          <div key={text} className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
-            {text}
+
+          <div className="mt-7 grid gap-3 text-sm text-slate-300 sm:grid-cols-3">
+            {[
+              [Radio, "Listen together"],
+              [ListMusic, "Build the queue together"],
+              [MessageCircle, "Chat and react live"]
+            ].map(([Icon, title]) => (
+              <div key={String(title)} className="flex items-center gap-3 rounded-2xl bg-white/[0.035] p-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[0.06] text-violet-100"><Icon size={18} /></span>
+                <b className="text-white">{String(title)}</b>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
+
+        <LandingSocialArtwork />
       </div>
+      {aboutOpen && <AboutDemoDialog onClose={() => setAboutOpen(false)} />}
     </section>
   );
 }
 
+function LandingSocialArtwork() {
+  return (
+    <div className="relative z-10 mt-8 min-h-[28rem] lg:mt-0 lg:min-h-[38rem]" aria-hidden="true">
+      <LandingHeroArt side="right" />
+      <div className="absolute inset-x-0 top-0 mx-auto w-full max-w-[24rem] rounded-[2rem] border border-white/10 bg-slate-950/72 p-4 shadow-2xl shadow-black/45 backdrop-blur sm:max-w-[27rem] lg:right-4 lg:left-auto">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-violet-200">Weekend Vibes</p>
+            <h2 className="mt-1 text-2xl font-black text-white">Daydreams</h2>
+            <p className="text-sm text-slate-400">Miami Dusk</p>
+          </div>
+          <div className="flex -space-x-2">
+            {mockUsers.slice(0, 4).map((user) => (
+              <div key={user.id} className="rounded-full border-2 border-slate-950">
+                <Avatar user={user} small />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="mt-5">
+          <AlbumArt song={library[0]} large />
+        </div>
+        <div className="mt-5 flex items-center justify-center gap-4">
+          <div className="grid h-12 w-12 place-items-center rounded-full bg-white/8 text-white"><Shuffle size={18} /></div>
+          <div className="grid h-16 w-16 place-items-center rounded-full bg-[linear-gradient(135deg,#7c3aed,#d946ef)] text-white shadow-xl shadow-violet-950/50"><Pause size={24} fill="currentColor" /></div>
+          <div className="grid h-12 w-12 place-items-center rounded-full bg-white/8 text-white"><SkipForward size={18} /></div>
+        </div>
+        <div className="mt-5 grid gap-2">
+          {library.slice(1, 4).map((song, index) => (
+            <MiniSong key={song.id} song={song} votes={14 - index * 3} />
+          ))}
+        </div>
+      </div>
+      <div className="absolute bottom-4 left-0 hidden w-56 rounded-2xl border border-white/10 bg-slate-950/70 p-4 shadow-2xl shadow-black/40 backdrop-blur sm:block lg:left-2">
+        <p className="text-xs font-black uppercase tracking-[0.14em] text-cyan-100">Live chat</p>
+        <div className="mt-3 grid gap-2 text-sm text-slate-200">
+          <p className="rounded-xl bg-white/[0.06] px-3 py-2">this song hits 🔥</p>
+          <p className="rounded-xl bg-violet-500/25 px-3 py-2">vote Midnight Glow next</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LandingHeroArt({ side }: { side: "left" | "right" }) {
+  return (
+    <div className={`landing-people hidden h-full min-h-[34rem] items-end lg:flex ${side === "left" ? "justify-start" : "justify-end"}`} aria-hidden="true">
+      <div className={`listener-figure ${side}`}>
+        <div className="music-note one">♪</div>
+        <div className="music-note two">♫</div>
+        <div className="music-note three">♪</div>
+        <div className="head">
+          <span className="hair" />
+          <span className="face" />
+          <span className="earphone left" />
+          <span className="earphone right" />
+        </div>
+        <div className="body">
+          <span className="hood" />
+          <span className="arm" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CreateRoom() {
-  const [name, setName] = useState("My Listening Room");
+  const [name, setName] = useState("Weekend Vibes");
   const [mood, setMood] = useState("Neon lounge");
   const [guestsCanAdd, setGuestsCanAdd] = useState(true);
   const [requireApproval, setRequireApproval] = useState(false);
+  const [nameError, setNameError] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
   const createRoom = useJamStore((state) => state.createRoom);
   const setScreen = useJamStore((state) => state.setScreen);
+  const moodOptions = [
+    { name: "Neon lounge", description: "Late-night and social" },
+    { name: "House party", description: "Loud, fast, shared" },
+    { name: "Late-night drive", description: "Smooth and cinematic" },
+    { name: "Focus flow", description: "Calm background energy" },
+    { name: "Arcade pop", description: "Bright and playful" },
+    { name: "Study Room", description: "Low-key listening" }
+  ];
+  const submitCreate = () => {
+    const trimmedName = name.trim();
+    if (trimmedName.length < 2) {
+      setNameError("Give the room a short name first.");
+      return;
+    }
+    setNameError("");
+    setIsCreating(true);
+    createRoom({ name: trimmedName, mood, guestsCanAdd, requireApproval });
+  };
 
   return (
-    <section className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-5 py-6 sm:px-8">
+    <section className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-5 py-6 sm:px-8">
       <header className="flex items-center justify-between">
         <Logo />
-        <button onClick={() => setScreen("landing")} className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10">
+        <button onClick={() => setScreen("landing")} className={buttonStyles.ghost}>
           Back
         </button>
       </header>
-      <div className="my-auto grid items-center gap-6 py-10 lg:grid-cols-[1fr_0.82fr]">
+      <div className="my-auto grid items-center gap-6 py-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div>
           <div className="mb-8">
-            <p className="mb-3 inline-flex rounded-full border border-violet-200/25 bg-violet-400/10 px-3 py-1 text-sm font-bold text-violet-100">Host setup</p>
-            <h1 className="text-4xl font-black">Create a listening room</h1>
-            <p className="mt-3 max-w-xl text-slate-300">Set the mood, decide how much guests can shape the queue, then share the generated room code.</p>
+            <p className="badge badge-primary mb-3">Host setup</p>
+            <h1 className="text-4xl font-black">Create a room in seconds</h1>
+            <p className="body-copy mt-3 max-w-xl">Name the room, pick a vibe, and decide how open the shared queue should be. You can adjust host controls later.</p>
           </div>
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              createRoom({ name, mood, guestsCanAdd, requireApproval });
+              submitCreate();
             }}
-            className="glass grid gap-6 rounded-3xl p-5 sm:p-7"
+            className="glass grid gap-5 rounded-3xl p-5 sm:p-7"
           >
-            <Field label="Room name">
-              <input value={name} onChange={(event) => setName(event.target.value)} required className="w-full rounded-xl border border-white/10 bg-white/8 px-4 py-3 text-white" />
-            </Field>
             <div className="grid gap-2">
-              <p className="font-bold text-white">Mood or theme</p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {["Neon lounge", "Late-night drive", "House party", "Focus flow", "Arcade pop"].map((option) => (
-                  <button key={option} type="button" onClick={() => setMood(option)} className={`rounded-xl border px-3 py-3 text-sm font-bold transition ${mood === option ? "border-violet-200/45 bg-violet-500/25 text-white" : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10"}`}>
-                    {option}
+              <label htmlFor="create-room-name" className="font-bold text-white">Room name</label>
+              <p className="text-sm metadata">This is what guests see when they enter.</p>
+              <input
+                id="create-room-name"
+                value={name}
+                onChange={(event) => {
+                  setName(event.target.value);
+                  if (nameError) setNameError("");
+                }}
+                required
+                maxLength={32}
+                autoComplete="off"
+                aria-invalid={Boolean(nameError)}
+                aria-describedby={nameError ? "create-room-name-error" : undefined}
+                className={nameError ? inputStyles.error : inputStyles.base}
+              />
+              {nameError && <p id="create-room-name-error" className="text-sm font-bold text-rose-100">{nameError}</p>}
+            </div>
+
+            <fieldset className="grid gap-2">
+              <legend className="font-bold text-white">Mood / theme</legend>
+              <p className="text-sm metadata">Choose a starting vibe for the room.</p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {moodOptions.map((option) => (
+                  <button key={option.name} type="button" onClick={() => setMood(option.name)} className={`rounded-xl border px-3 py-3 text-left transition ${mood === option.name ? "border-violet-200/35 bg-violet-500/18 text-white" : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10"}`} aria-pressed={mood === option.name}>
+                    <span className="block text-sm font-black">{option.name}</span>
+                    <span className="mt-0.5 block text-xs text-slate-400">{option.description}</span>
                   </button>
                 ))}
               </div>
+            </fieldset>
+
+            <div className="grid gap-2">
+              <CreateSettingToggle label="Guests can add songs" description="Let everyone suggest tracks directly into the queue." checked={guestsCanAdd} onChange={setGuestsCanAdd} />
+              <CreateSettingToggle label="Require song approval" description="New guest songs wait for the host before playing." checked={requireApproval} onChange={setRequireApproval} />
             </div>
-            <Toggle label="Guests can add songs" checked={guestsCanAdd} onChange={setGuestsCanAdd} />
-            <Toggle label="Songs require host approval" checked={requireApproval} onChange={setRequireApproval} />
-            <button className="inline-flex items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,#7c3aed,#a855f7_50%,#d946ef)] px-5 py-3 font-black text-white shadow-lg shadow-violet-950/40 transition hover:scale-[1.01]">
-              <Crown size={18} /> Create room
+
+            <button disabled={isCreating} className={`${buttonStyles.primary} min-h-14`}>
+              <Crown size={18} /> {isCreating ? "Creating..." : "Create Room"}
             </button>
           </form>
         </div>
@@ -620,16 +907,15 @@ function CreateRoom() {
 function RoomExperience() {
   const room = useJamStore((state) => state.room);
   const mobileTab = useJamStore((state) => state.mobileTab);
+  const viewMode = useJamStore((state) => state.viewMode);
   const setMobileTab = useJamStore((state) => state.setMobileTab);
   const resetDemo = useJamStore((state) => state.resetDemo);
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [introOpen, setIntroOpen] = useState(false);
+  const [hintDismissed, setHintDismissed] = useState(false);
 
   useEffect(() => {
-    if (room?.code === "JAM247" && window.localStorage.getItem(DEMO_INTRO_STORAGE_KEY) !== "true") {
-      setIntroOpen(true);
-    }
-  }, [room?.code]);
+    if (room?.demoRunId) setHintDismissed(false);
+  }, [room?.demoRunId]);
 
   if (!room) return null;
   if (room.ended) {
@@ -650,59 +936,99 @@ function RoomExperience() {
   return (
     <section className="flex min-h-screen w-full overflow-x-hidden">
       <Sidebar />
-      <div className="min-w-0 flex-1 px-4 pb-24 pt-4 lg:px-5 lg:pb-5">
+      <div className="min-w-0 flex-1 px-3 pb-[12rem] pt-3 sm:px-4 lg:px-5 lg:pb-5 lg:pt-4">
         <div className="hidden lg:block">
           <TopBar onAbout={() => setAboutOpen(true)} />
         </div>
         <MobileRoomHeader onAbout={() => setAboutOpen(true)} />
-        <div className="mt-4 hidden grid-cols-[minmax(0,1.05fr)_minmax(420px,1.35fr)_minmax(300px,0.72fr)] gap-4 xl:grid">
-          <div className="grid min-w-0 content-start gap-4">
-            <Player />
-          </div>
-          <div className="grid min-w-0 content-start gap-4">
-            <QueuePanel />
-            <HostDashboard />
-          </div>
-          <div className="grid min-w-0 content-start gap-4">
-            <PeoplePanel />
-            <ChatPanel />
-            <FeatureCard />
-          </div>
-        </div>
-        <div className="mt-4 hidden grid-cols-[minmax(0,1fr)_360px] gap-4 lg:grid xl:hidden">
+        {room.demoRunId && !hintDismissed && <DemoHint onClose={() => setHintDismissed(true)} />}
+        <div className="mt-4 hidden grid-cols-[minmax(0,1fr)_24rem] gap-4 xl:grid 2xl:grid-cols-[minmax(0,1fr)_26rem]">
           <div className="grid min-w-0 gap-4">
             <Player />
             <QueuePanel />
-            <HostDashboard />
           </div>
           <div className="grid min-w-0 content-start gap-4">
-            <PeoplePanel />
-            <ChatPanel />
+            <DesktopSocialPanel />
+            <HostDashboard />
           </div>
         </div>
-        <div className="mt-4 lg:hidden">
+        <div className="mt-4 hidden grid-cols-[minmax(0,1fr)_21rem] gap-4 lg:grid xl:hidden">
+          <div className="grid min-w-0 gap-4">
+            <Player />
+            <QueuePanel />
+          </div>
+          <div className="grid min-w-0 content-start gap-4">
+            <DesktopSocialPanel />
+            <HostDashboard />
+          </div>
+        </div>
+        <div className="mobile-screen mt-4 lg:hidden">
           {mobileTab === "player" && <Player />}
           {mobileTab === "queue" && <QueuePanel />}
-          {mobileTab === "people" && <PeoplePanel />}
+          {mobileTab === "people" && (
+            <div className="grid gap-4">
+              <PeoplePanel />
+              {viewMode === "host" && <HostDashboard />}
+            </div>
+          )}
           {mobileTab === "chat" && <ChatPanel />}
           {mobileTab !== "player" && <CompactPlayer />}
         </div>
       </div>
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-white/10 bg-slate-950/92 px-2 py-2 backdrop-blur lg:hidden">
-        {[
-          ["player", Play, "Player"],
-          ["queue", ListMusic, "Queue"],
-          ["people", Users, "People"],
-          ["chat", MessageCircle, "Chat"]
-        ].map(([tab, Icon, label]) => (
-          <button key={String(tab)} onClick={() => setMobileTab(tab as MobileTab)} className={`flex flex-col items-center gap-1 rounded-lg px-2 py-2 text-xs ${mobileTab === tab ? "bg-white/10 text-white" : "text-slate-400"}`} aria-label={String(label)}>
+      <nav className="mobile-nav fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-white/10 bg-slate-950/94 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur lg:hidden" aria-label="Mobile room sections">
+        {mobileNavItems.map(({ tab, icon: Icon, label }) => (
+          <button type="button" key={tab} onClick={() => setMobileTab(tab)} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-xs font-bold ${mobileTab === tab ? "bg-white/10 text-white" : "text-slate-400"}`} aria-label={label} aria-current={mobileTab === tab ? "page" : undefined}>
             <Icon size={18} />
-            {String(label)}
+            {label}
           </button>
         ))}
       </nav>
-      {introOpen && <DemoIntroDialog onClose={() => setIntroOpen(false)} />}
       {aboutOpen && <AboutDemoDialog onClose={() => setAboutOpen(false)} />}
+    </section>
+  );
+}
+
+function DesktopSocialPanel() {
+  const [activePanel, setActivePanel] = useState<"people" | "chat">("people");
+  const users = useJamStore((state) => state.users);
+  const chat = useJamStore((state) => state.chat);
+  const tabs = [
+    { id: "people" as const, icon: Users, label: `People ${users.length}` },
+    { id: "chat" as const, icon: MessageCircle, label: `Chat ${chat.length}` }
+  ];
+  const moveTabFocus = (event: ReactKeyboardEvent<HTMLButtonElement>, id: "people" | "chat") => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === "Home" ? "people" : event.key === "End" ? "chat" : id === "people" ? "chat" : "people";
+    setActivePanel(next);
+    window.requestAnimationFrame(() => {
+      event.currentTarget.parentElement?.querySelector<HTMLButtonElement>(`[data-social-tab="${next}"]`)?.focus();
+    });
+  };
+
+  return (
+    <section className="panel min-h-[34rem] rounded-2xl p-3">
+      <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl border border-white/8 bg-white/[0.035] p-1" role="tablist" aria-label="Social panel">
+        {tabs.map(({ id, icon: Icon, label }) => (
+            <button
+              key={id}
+              onClick={() => setActivePanel(id)}
+              onKeyDown={(event) => moveTabFocus(event, id)}
+              className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-black transition ${activePanel === id ? "active-pill bg-white text-slate-950" : "text-slate-300 hover:bg-white/10 hover:text-white"}`}
+              role="tab"
+              aria-selected={activePanel === id}
+              aria-controls="desktop-social-panel"
+              data-social-tab={id}
+              tabIndex={activePanel === id ? 0 : -1}
+            >
+            <Icon size={16} />
+            {label}
+          </button>
+        ))}
+      </div>
+      <div id="desktop-social-panel" role="tabpanel" aria-label={activePanel === "people" ? "People" : "Chat"}>
+        {activePanel === "people" ? <PeoplePanel embedded /> : <ChatPanel embedded />}
+      </div>
     </section>
   );
 }
@@ -720,37 +1046,83 @@ function TopBar({ onAbout }: { onAbout: () => void }) {
   return (
     <header className="glass flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3">
       <div className="min-w-0">
-        <h1 className="truncate text-2xl font-black text-white">{room?.name}</h1>
-        <p className="mt-1 flex items-center gap-2 text-sm text-slate-300">
-          <span className="inline-grid h-5 w-5 place-items-center rounded-full bg-violet-400/20 text-[10px] font-black text-violet-100">JR</span>
-          {room?.mood} room
+        <div className="flex items-center gap-2">
+          <span className="live-dot" />
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-green-100">Live room</p>
+        </div>
+        <h1 className="room-title mt-1 truncate">{room?.name}</h1>
+        <p className="metadata mt-1 flex items-center gap-2 text-sm">
+          <span>{users.filter((user) => user.listening).length} listening</span>
+          <span className="h-1 w-1 rounded-full bg-slate-600" />
+          <span>{room?.mood}</span>
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-xl border border-white/10 bg-white/[0.04] p-1">
+        <div className="inline-flex rounded-xl border border-white/10 bg-white/[0.04] p-1" role="group" aria-label="Preview as host or guest">
           {(["host", "guest"] as const).map((mode) => (
-            <button key={mode} onClick={() => setViewMode(mode)} className={`rounded-lg px-3 py-2 text-sm font-bold capitalize transition ${viewMode === mode ? "bg-white text-slate-950" : "text-slate-300 hover:bg-white/10"}`}>
+            <button key={mode} onClick={() => setViewMode(mode)} className={`rounded-lg px-3 py-2 text-sm font-bold capitalize transition ${viewMode === mode ? "active-pill bg-white text-slate-950" : "text-slate-300 hover:bg-white/10"}`} aria-pressed={viewMode === mode}>
               {mode} View
             </button>
           ))}
         </div>
-        <button onClick={startDemo} className="inline-flex items-center gap-2 rounded-xl border border-violet-300/25 px-3 py-2 text-sm font-bold text-white hover:bg-violet-400/15" aria-label="Start demo mode">
-          <Wand2 size={16} /> Demo
+        <button onClick={() => copyText(invite, addToast, "Invite link copied")} className={`${buttonStyles.neutral} min-h-10 px-3 py-2`} aria-label={`Copy invite link for room ${room?.code}`}>
+          <Link2 size={16} /> Invite <span className="font-mono text-xs font-black text-slate-500">{room?.code}</span>
         </button>
-        <button onClick={() => copyText(invite, addToast, "Invite link copied")} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm font-bold text-white hover:bg-white/10" aria-label="Copy invite link">
-          <Copy size={16} /> {room?.code}
-        </button>
-        <button onClick={onAbout} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm font-bold text-white hover:bg-white/10" aria-label="Open About This Demo">
-          <Info size={16} /> About
-        </button>
-        <button onClick={resetDemo} className="rounded-xl border border-white/10 p-2 text-slate-300 hover:bg-white/10" aria-label="Reset demo">
-          <RotateCcw size={18} />
-        </button>
-      </div>
-      <div className="basis-full text-sm text-slate-300 lg:basis-auto">
-        <span className="font-bold text-white">{users.filter((user) => user.online).length}</span> listeners online
+        <details className="relative">
+          <summary className={`${buttonStyles.icon} min-h-10 w-10 cursor-pointer list-none`} aria-label="More room actions" title="More room actions">
+            <MoreVertical size={18} />
+          </summary>
+          <div className="details-popover absolute right-0 z-30 mt-2 w-44 rounded-xl border border-white/10 bg-slate-950/96 p-1.5 shadow-2xl shadow-black/50 backdrop-blur">
+            <button onClick={() => copyText(room?.code ?? "", addToast, "Room code copied")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-bold text-slate-200 hover:bg-white/10" aria-label="Copy room code">
+              <Copy size={15} /> Copy code
+            </button>
+            <button onClick={startDemo} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-bold text-slate-200 hover:bg-white/10" aria-label="Start demo mode">
+              <Wand2 size={15} /> Demo mode
+            </button>
+            <button onClick={onAbout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-bold text-slate-200 hover:bg-white/10" aria-label="Open About This Demo">
+              <Info size={15} /> About
+            </button>
+            <button onClick={resetDemo} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-bold text-slate-200 hover:bg-white/10" aria-label="Reset demo">
+              <RotateCcw size={15} /> Reset
+            </button>
+          </div>
+        </details>
       </div>
     </header>
+  );
+}
+
+function RoomMetrics() {
+  const room = useJamStore((state) => state.room);
+  const users = useJamStore((state) => state.users);
+  const queue = useJamStore((state) => state.queue);
+  const chat = useJamStore((state) => state.chat);
+  const currentSongId = useJamStore((state) => state.currentSongId);
+  const current = queue.find((song) => song.queueId === currentSongId) ?? queue[0];
+  const pending = queue.filter((song) => !song.approved).length;
+
+  const metrics = [
+    { icon: Radio, label: "Now playing", value: current?.title ?? "Queue empty", tone: "text-violet-100" },
+    { icon: Users, label: "Listeners", value: `${users.filter((user) => user.listening).length}/${users.length} active`, tone: "text-cyan-100" },
+    { icon: ListMusic, label: "Queue depth", value: `${queue.length} tracks${pending ? ` · ${pending} pending` : ""}`, tone: "text-fuchsia-100" },
+    { icon: MessageCircle, label: "Room activity", value: `${chat.length} messages`, tone: "text-green-100" }
+  ];
+
+  return (
+    <div className="mt-4 grid gap-3 xl:grid-cols-4">
+      {metrics.map(({ icon: Icon, label, value, tone }) => (
+        <div key={label} className="metric-card flex min-w-0 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3">
+          <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/8 ${tone}`}>
+            <Icon size={18} />
+          </div>
+          <div className="min-w-0">
+            <p className="eyebrow metadata">{label}</p>
+            <p className="truncate text-sm font-bold text-white">{value}</p>
+          </div>
+        </div>
+      ))}
+      <div className="sr-only">Current room is {room?.name}</div>
+    </div>
   );
 }
 
@@ -764,35 +1136,30 @@ function MobileRoomHeader({ onAbout }: { onAbout: () => void }) {
   const invite = `${PROJECT_LINKS.app.replace(/\/$/, "")}?room=${room?.code ?? ""}`;
 
   return (
-    <header className="mb-4 lg:hidden">
-      <div className="mb-3 flex items-center justify-between px-1 text-xs font-bold text-white">
-        <span>9:41</span>
-        <span>{users.filter((user) => user.online).length} online</span>
-      </div>
-      <div className="glass rounded-[1.35rem] p-3">
-        <div className="flex items-start justify-between gap-3">
+    <header className="mobile-room-header mb-3 lg:hidden">
+      <div className="glass rounded-[1.1rem] p-3">
+        <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs text-slate-400">Room</p>
-            <h1 className="truncate text-lg font-black">{room?.name}</h1>
-            <p className="truncate text-xs text-slate-400">Hosted by alex</p>
+            <div className="flex items-center gap-2 text-xs font-bold text-green-100"><span className="live-dot" /> Live · {users.filter((user) => user.online).length} online</div>
+            <h1 className="room-title mt-0.5 truncate text-lg">{room?.name}</h1>
           </div>
-          <button onClick={() => copyText(invite, addToast, "Invite link copied")} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-black text-white" aria-label="Copy invite link">
-            {room?.code}
+          <button onClick={() => copyText(invite, addToast, "Invite link copied")} className={`${buttonStyles.secondary} min-h-10 shrink-0 px-3 py-2 text-xs`} aria-label="Copy invite link">
+            <Copy size={14} /> {room?.code}
           </button>
         </div>
-        <div className="mt-3 grid grid-cols-[1fr_auto_auto] gap-2">
-          <div className="inline-flex rounded-xl border border-white/10 bg-white/[0.04] p-1">
+        <div className="mt-3 flex items-center gap-2">
+          <div className="inline-flex min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[0.04] p-1" role="group" aria-label="Preview as host or guest">
             {(["host", "guest"] as const).map((mode) => (
-              <button key={mode} onClick={() => setViewMode(mode)} className={`rounded-lg px-3 py-2 text-xs font-black capitalize ${viewMode === mode ? "bg-white text-slate-950" : "text-slate-300"}`}>
+              <button key={mode} onClick={() => setViewMode(mode)} className={`min-h-10 flex-1 rounded-lg px-3 py-2 text-xs font-black capitalize transition ${viewMode === mode ? "active-pill bg-white text-slate-950" : "text-slate-300"}`} aria-pressed={viewMode === mode}>
                 {mode}
               </button>
             ))}
           </div>
-          <button onClick={startDemo} className="rounded-xl border border-violet-300/25 px-3 py-2 text-xs font-black text-white" aria-label="Start demo mode">
-            Demo
+          <button onClick={startDemo} className={`${buttonStyles.icon} min-h-10 w-11 border-violet-300/25 text-white`} aria-label="Start demo mode" title="Start demo mode">
+            <Wand2 size={15} />
           </button>
-          <button onClick={onAbout} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-black text-white" aria-label="Open About This Demo">
-            About
+          <button onClick={onAbout} className={`${buttonStyles.icon} min-h-10 w-11 text-white`} aria-label="Open About This Demo" title="About this demo">
+            <Info size={15} />
           </button>
         </div>
       </div>
@@ -806,7 +1173,7 @@ function Sidebar() {
   return (
     <aside className="sticky top-0 hidden h-screen w-[12.25rem] shrink-0 border-r border-white/10 bg-slate-950/70 p-4 lg:flex lg:flex-col lg:gap-5">
       <Logo />
-      <nav className="mt-3 grid gap-1">
+      <nav className="mt-3 grid gap-1" aria-label="Primary">
         {[
           [Home, "Home"],
           [ListMusic, "My Rooms"],
@@ -814,7 +1181,7 @@ function Sidebar() {
           [MessageCircle, "Messages"],
           [Users, "Profile"]
         ].map(([Icon, label], index) => (
-          <button key={String(label)} onClick={() => index > 0 && addToast(`${label} is a portfolio demo placeholder.`)} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition ${index === 1 ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/10 hover:text-white"}`} aria-label={String(label)}>
+          <button key={String(label)} onClick={() => index > 0 && addToast(`${label} is a portfolio demo placeholder.`)} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition ${index === 1 ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/10 hover:text-white"}`} aria-label={String(label)} aria-current={index === 1 ? "page" : undefined}>
             <Icon size={18} />
             {String(label)}
           </button>
@@ -828,7 +1195,7 @@ function Sidebar() {
           <div className="flex items-center gap-3">
             <Avatar user={mockUsers[0]} small />
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold">alex</p>
+              <p className="truncate text-sm font-bold">Alex</p>
               <p className="text-xs text-green-200">Online</p>
             </div>
           </div>
@@ -850,38 +1217,111 @@ function Player() {
   const skipSong = useJamStore((state) => state.skipSong);
   const setProgress = useJamStore((state) => state.setProgress);
   const setVolume = useJamStore((state) => state.setVolume);
+  const youtubeControls = useRef<YouTubeControls | null>(null);
   const toggleRepeat = useJamStore((state) => state.toggleRepeat);
   const toggleShuffle = useJamStore((state) => state.toggleShuffle);
   const addReaction = useJamStore((state) => state.addReaction);
   const reactions = useJamStore((state) => state.reactions);
   const current = queue.find((song) => song.queueId === currentSongId) ?? queue[0];
   const elapsed = current ? Math.round((current.duration * progress) / 100) : 0;
+  const usesEmbeddedPlayback = current?.sourceProvider === "YouTube";
+  const playbackElapsed = usesEmbeddedPlayback ? elapsed : elapsed;
+  const toggleCurrentPlayback = () => {
+    if (usesEmbeddedPlayback && youtubeControls.current) {
+      if (isPlaying) youtubeControls.current.pause();
+      else youtubeControls.current.play();
+      return;
+    }
+    togglePlay();
+  };
+  const changeProgress = (nextProgress: number) => {
+    if (usesEmbeddedPlayback && youtubeControls.current) youtubeControls.current.seekPercent(nextProgress);
+    setProgress(nextProgress);
+  };
+  const changeVolume = (nextVolume: number) => {
+    if (usesEmbeddedPlayback && youtubeControls.current) youtubeControls.current.setVolume(nextVolume);
+    setVolume(nextVolume);
+  };
+  const setYouTubePlaying = useCallback((playing: boolean) => {
+    if (playing !== useJamStore.getState().isPlaying) useJamStore.setState({ isPlaying: playing });
+  }, []);
+  const registerYouTubeControls = useCallback((controls: YouTubeControls | null) => {
+    youtubeControls.current = controls;
+  }, []);
 
   return (
-    <section className="glass relative overflow-hidden rounded-3xl p-4 sm:p-6">
+    <section className="glass player-shell mobile-player-screen relative min-w-0 overflow-hidden rounded-2xl p-4 sm:p-5 xl:p-6">
       <div className="absolute inset-x-0 top-0 h-32 bg-[linear-gradient(180deg,rgba(168,85,247,0.16),transparent)]" />
-      <div className="relative grid gap-6 lg:grid-cols-[minmax(220px,0.72fr)_1fr] xl:grid-cols-1">
-        <AlbumArt song={current} large />
-        <div className="min-w-0 self-center">
-          <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-green-300/20 bg-green-300/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-green-100">
-            <Mic2 size={15} /> Now playing
-          </p>
-          <h2 className="truncate text-3xl font-black sm:text-4xl">{current?.title ?? "Queue is empty"}</h2>
-          <p className="mt-2 truncate text-lg text-slate-300">{current ? `${current.artist} • ${current.album}` : "Add a song to start listening together."}</p>
-          <p className="mt-1 text-sm text-slate-500">Simulated synced playback</p>
-          <div className="mt-6">
-            <input aria-label="Playback progress" type="range" min="0" max="100" value={progress} onChange={(event) => setProgress(Number(event.target.value))} className="range w-full" />
+      <div className="relative grid min-w-0 gap-5 xl:grid-cols-[minmax(18rem,0.72fr)_minmax(0,1fr)] 2xl:grid-cols-[minmax(21rem,0.66fr)_minmax(0,1fr)]">
+        <div className="relative min-w-0">
+          <div className="mobile-art-wrap desktop-art-wrap">
+            {current?.embedUrl ? (
+              <YouTubeEmbed
+                videoId={current.sourceId ?? ""}
+                title={current.title}
+                queueId={current.queueId}
+                volume={volume}
+                setProgress={setProgress}
+                setPlaying={setYouTubePlaying}
+                onEnded={skipSong}
+                onControls={registerYouTubeControls}
+              />
+            ) : (
+              <AlbumArt song={current} large />
+            )}
+          </div>
+          <div className="mobile-sync-card absolute bottom-3 left-3 right-3 rounded-xl border border-white/10 bg-slate-950/62 px-3 py-2 backdrop-blur">
+            <div className="flex items-center justify-between gap-3 text-xs font-bold text-slate-200">
+              <span className="inline-flex items-center gap-2"><Wifi size={14} className="text-green-200" /> Synced</span>
+              <span>{Math.round(progress)}%</span>
+            </div>
+            <div className={`sound-bars mt-2 ${isPlaying ? "" : "is-paused"}`} aria-hidden="true">
+              {Array.from({ length: 24 }).map((_, index) => (
+                <span key={index} style={{ animationDelay: `${index * 70}ms` }} />
+              ))}
+            </div>
+          </div>
+        </div>
+        <div key={current?.queueId ?? "empty-track"} className="player-track-motion min-w-0 self-center xl:pl-2">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <p className="badge badge-live uppercase tracking-[0.12em]">
+              <Mic2 size={15} /> Now playing
+            </p>
+            <p className="badge badge-neutral">
+              <Clock3 size={14} /> {usesEmbeddedPlayback ? `${formatTime(playbackElapsed)} YouTube` : `${formatTime(elapsed)} elapsed`}
+            </p>
+          </div>
+          <h2 className="song-title truncate text-3xl leading-tight sm:text-4xl xl:text-5xl">{current?.title ?? "Queue is empty"}</h2>
+          <p className="mt-2 truncate text-lg font-semibold text-slate-200 xl:text-xl">{current ? current.artist : "Add a song to start listening together."}</p>
+          {current && <p className="metadata mt-1 truncate text-sm">{current.album}</p>}
+          <p className="metadata mt-1 text-sm">{usesEmbeddedPlayback ? "YouTube player linked to room controls" : "Synced playback · host-controlled room state"}</p>
+          <div className="mt-5">
+            <input
+              aria-label={`Playback progress for ${current?.title ?? "current song"}`}
+              aria-valuetext={`${formatTime(playbackElapsed)} of ${formatTime(current?.duration ?? 0)}`}
+              type="range"
+              min="0"
+              max="100"
+              value={progress}
+              onChange={(event) => changeProgress(Number(event.target.value))}
+              className="range w-full"
+            />
             <div className="mt-2 flex justify-between text-xs text-slate-400">
-              <span>{formatTime(elapsed)}</span>
+              <span>{formatTime(playbackElapsed)}</span>
               <span>{formatTime(current?.duration ?? 0)}</span>
             </div>
           </div>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+          {usesEmbeddedPlayback && (
+            <div className="mt-3 rounded-xl border border-cyan-200/15 bg-cyan-300/10 px-3 py-2 text-sm leading-6 text-cyan-50">
+              YouTube IFrame playback is active for this track.
+            </div>
+          )}
+          <div className="mobile-playback-controls mt-6 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
             <IconButton active={shuffle} label="Shuffle queue" onClick={toggleShuffle}>
               <Shuffle size={20} />
             </IconButton>
-            <button onClick={togglePlay} className="grid h-14 w-14 place-items-center rounded-full bg-white text-slate-950 shadow-xl shadow-violet-950/40 transition hover:scale-105" aria-label={isPlaying ? "Pause" : "Play"}>
-              {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
+            <button onClick={toggleCurrentPlayback} className={`play-toggle grid h-16 w-16 place-items-center rounded-full bg-[linear-gradient(135deg,#7c3aed,#d946ef)] text-white shadow-xl shadow-violet-950/40 transition hover:scale-105 ${isPlaying ? "is-playing" : ""}`} aria-label={isPlaying ? `Pause ${current?.title ?? "playback"}` : `Play ${current?.title ?? "playback"}`} aria-pressed={isPlaying} title={isPlaying ? "Pause" : "Play"}>
+              {isPlaying ? <Pause size={27} fill="currentColor" /> : <Play size={27} fill="currentColor" />}
             </button>
             <IconButton label="Skip song" onClick={skipSong}>
               <SkipForward size={20} />
@@ -889,29 +1329,140 @@ function Player() {
             <IconButton active={repeat} label="Repeat" onClick={toggleRepeat}>
               <Repeat2 size={20} />
             </IconButton>
-            <div className="ml-0 flex min-w-[170px] items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 sm:ml-3">
+            <div className="mobile-volume ml-0 flex min-w-[150px] flex-1 items-center gap-2 rounded-xl bg-white/[0.055] px-3 py-2 sm:ml-3 sm:flex-none">
               <Volume2 size={18} className="text-slate-300" />
-              <input aria-label="Volume" type="range" min="0" max="100" value={volume} onChange={(event) => setVolume(Number(event.target.value))} className="range w-full" />
+              <input aria-label="Playback volume" aria-valuetext={`${volume}% volume`} type="range" min="0" max="100" value={volume} onChange={(event) => changeVolume(Number(event.target.value))} className="range w-full" />
             </div>
           </div>
-          <div className="mt-6 flex flex-wrap items-center gap-2">
+          <div className="mobile-reactions mt-5 flex flex-wrap items-center gap-2">
             {["🔥", "💜", "✨", "🙌", "⚡"].map((emoji) => (
-              <button key={emoji} onClick={() => addReaction(emoji)} className="h-12 min-w-12 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-xl shadow-sm transition hover:scale-105 hover:bg-white/10" aria-label={`React ${emoji}`}>
+              <button key={emoji} onClick={() => addReaction(emoji)} className={`${buttonStyles.secondary} h-12 min-w-12 px-3 text-xl shadow-sm`} aria-label={`React ${emoji}`}>
                 {emoji}
               </button>
             ))}
+            <span className="ml-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Tap to react</span>
           </div>
         </div>
       </div>
-      <div className="pointer-events-none absolute right-8 top-8 flex gap-2">
+      <div className="pointer-events-none absolute right-8 top-8 flex gap-2" aria-hidden="true">
         {reactions.slice(-4).map((emoji, index) => (
-          <span key={`${emoji}-${index}`} className="animate-bounce rounded-full bg-white/10 px-3 py-2 text-2xl shadow-lg">
+          <span key={`${emoji}-${index}`} className="reaction-pop rounded-full bg-white/10 px-3 py-2 text-2xl shadow-lg">
             {emoji}
           </span>
         ))}
       </div>
     </section>
   );
+}
+
+function YouTubeEmbed({
+  videoId,
+  title,
+  queueId,
+  volume,
+  setProgress,
+  setPlaying,
+  onEnded,
+  onControls
+}: {
+  videoId: string;
+  title: string;
+  queueId: string;
+  volume: number;
+  setProgress: (progress: number) => void;
+  setPlaying: (playing: boolean) => void;
+  onEnded: () => void;
+  onControls: (controls: YouTubeControls | null) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<YouTubePlayer | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const checkVisibility = () => {
+      const element = containerRef.current;
+      setIsVisible(Boolean(element && element.getClientRects().length > 0 && element.offsetParent !== null));
+    };
+    checkVisibility();
+    window.addEventListener("resize", checkVisibility);
+    const timer = window.setTimeout(checkVisibility, 50);
+    return () => {
+      window.removeEventListener("resize", checkVisibility);
+      window.clearTimeout(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let progressTimer: number | undefined;
+
+    if (!videoId || !isVisible || !containerRef.current) return undefined;
+
+    loadYouTubeApi()
+      .then((api) => {
+        if (cancelled || !containerRef.current) return;
+        playerRef.current?.destroy();
+        const player = new api.Player(containerRef.current, {
+          videoId,
+          playerVars: {
+            rel: 0,
+            modestbranding: 1,
+            playsinline: 1,
+            enablejsapi: 1
+          },
+          events: {
+            onReady: (event) => {
+              playerRef.current = event.target;
+              event.target.setVolume(volume);
+              onControls({
+                play: () => event.target.playVideo(),
+                pause: () => event.target.pauseVideo(),
+                seekPercent: (percent) => {
+                  const duration = event.target.getDuration();
+                  if (duration > 0) event.target.seekTo((duration * percent) / 100, true);
+                },
+                setVolume: (nextVolume) => event.target.setVolume(nextVolume)
+              });
+              const duration = Math.round(event.target.getDuration());
+              if (duration > 0) updateQueuedSongDuration(queueId, duration);
+              progressTimer = window.setInterval(() => {
+                const nextDuration = event.target.getDuration();
+                const currentTime = event.target.getCurrentTime();
+                if (nextDuration > 0) {
+                  updateQueuedSongDuration(queueId, Math.round(nextDuration));
+                  setProgress(Math.min(100, Math.max(0, (currentTime / nextDuration) * 100)));
+                }
+              }, 500);
+            },
+            onStateChange: (event) => {
+              if (event.data === api.PlayerState.PLAYING) setPlaying(true);
+              if (event.data === api.PlayerState.PAUSED) setPlaying(false);
+              if (event.data === api.PlayerState.ENDED) {
+                setPlaying(false);
+                onEnded();
+              }
+            },
+            onError: () => useJamStore.getState().addToast("This YouTube video cannot be embedded.")
+          }
+        });
+        playerRef.current = player;
+      })
+      .catch(() => useJamStore.getState().addToast("YouTube player could not load."));
+
+    return () => {
+      cancelled = true;
+      if (progressTimer) window.clearInterval(progressTimer);
+      onControls(null);
+      playerRef.current?.destroy();
+      playerRef.current = null;
+    };
+  }, [videoId, queueId, isVisible, setProgress, setPlaying, onEnded, onControls]);
+
+  useEffect(() => {
+    playerRef.current?.setVolume(volume);
+  }, [volume]);
+
+  return <div ref={containerRef} className="aspect-square w-full overflow-hidden rounded-2xl bg-slate-950" role="region" aria-label={`${title} YouTube player`} />;
 }
 
 function QueuePanel() {
@@ -928,121 +1479,325 @@ function QueuePanel() {
   const canManage = viewMode === "host";
 
   return (
-    <section className="panel rounded-2xl p-4">
+    <section className="queue-panel mobile-queue-screen panel rounded-2xl p-4">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-black">Queue</h2>
-            <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-black">{queue.length}</span>
+            <h2 className="section-title">Queue</h2>
+            <span className="badge badge-neutral">{queue.length}</span>
           </div>
-          <p className="text-sm text-slate-400">Upcoming tracks auto-sort by vote count.</p>
+          <p className="metadata text-sm">What plays next, shaped by everyone.</p>
         </div>
-        <ListMusic className="text-violet-200" />
+        <div className="grid h-11 w-11 place-items-center rounded-xl bg-white/[0.055] text-slate-200">
+          <ListMusic size={20} />
+        </div>
       </div>
-      <div className="mb-4 grid gap-2 sm:grid-cols-[1fr_auto]">
-        <label className="relative block">
+      <div className="mobile-add-song mb-4 grid gap-2 sm:grid-cols-[1fr_auto]">
+        <label className="relative block" htmlFor="queue-search">
           <span className="sr-only">Search music or paste link</span>
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search songs or paste Spotify, Apple, YouTube, SoundCloud URL" className="w-full rounded-xl border border-white/10 bg-white/[0.06] py-3 pl-10 pr-3 text-sm text-white placeholder:text-slate-500" />
+          <input id="queue-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search songs or paste a music link" autoComplete="off" className={`${inputStyles.base} py-3 pl-10 pr-3`} aria-describedby={query ? "queue-search-result" : undefined} />
         </label>
-        <button onClick={() => result && addSong(result)} disabled={!result} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-slate-950 disabled:cursor-not-allowed disabled:opacity-45">
+        <button
+          onClick={() => {
+            if (!result) return;
+            addSong(result);
+            setQuery("");
+          }}
+          disabled={!result}
+          className={`${buttonStyles.primary} min-h-12 px-4 py-3`}
+          aria-disabled={!result}
+        >
           <Plus size={17} /> Add Song
         </button>
       </div>
       {query && (
-        <div className={`mb-4 rounded-xl border p-3 text-sm ${result ? "border-cyan-300/15 bg-cyan-300/8 text-cyan-50" : "border-amber-300/20 bg-amber-300/10 text-amber-50"}`}>
+        <div id="queue-search-result" className={`mb-4 rounded-xl border p-3 text-sm ${result ? "border-cyan-300/15 bg-cyan-300/8 text-cyan-50" : "border-amber-300/20 bg-amber-300/10 text-amber-50"}`}>
           {result ? (
             <span>
-              Demo match: <b>{result.title}</b> by {result.artist}. Link matching is simulated for portfolio review.
+              {result.sourceUrl ? (
+                <>
+                  Ready to add <b>{result.sourceProvider}</b> link. {result.sourceProvider === "YouTube" ? "It will open as an embedded player in the room." : "It will stay attached as an external music link."}
+                </>
+              ) : (
+                <>
+                  Demo match: <b>{result.title}</b> by {result.artist}. Link matching is simulated for portfolio review.
+                </>
+              )}
             </span>
           ) : (
             invalidMusicLink(query)
-              ? "That link does not look like a supported demo music URL. Try a Spotify, Apple Music, YouTube, SoundCloud-style link, or search Aurora, Neon, or Glimmer."
-              : "No demo result found. Try Aurora, Neon, Glimmer, or paste a music-style link."
+              ? "That link does not look like a supported demo music URL. Try Spotify, Apple Music, YouTube, or SoundCloud-style links."
+              : "No demo result found. Try Daydreams, Ocean, Glimmer, or paste a music-style link."
           )}
         </div>
       )}
-      <div className="grid max-h-[560px] gap-3 overflow-y-auto pr-1">
-        {queue.length === 0 && <EmptyState icon={<ListMusic />} title="No songs yet" text="Search the mock library or paste a demo link to add the first track." />}
+      <div className="queue-list max-h-[min(600px,54vh)] overflow-y-auto pr-1 max-lg:max-h-none max-lg:overflow-visible max-lg:pr-0">
+        {queue.length === 0 && <EmptyState icon={<ListMusic />} title="Build the first queue" text="Search the demo library or paste a YouTube/music link to start the room." />}
         {queue.map((song, index) => (
-          <div key={song.queueId} className={`grid grid-cols-[1.25rem_3.5rem_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border p-2 ${song.queueId === currentSongId ? "border-violet-300/35 bg-white/[0.075]" : "border-white/10 bg-white/[0.025]"}`}>
-            <span className="text-center text-xs text-slate-500">{index + 1}</span>
-            <AlbumArt song={song} />
-            <div className="min-w-0">
-              <div className="flex min-w-0 items-center gap-2">
-                <p className="truncate font-bold">{song.title}</p>
-                {index === 0 && <span className="shrink-0 rounded-full bg-green-300/15 px-2 py-0.5 text-xs text-green-100">Now</span>}
-                {!song.approved && <span className="shrink-0 rounded-full border border-amber-200/25 bg-amber-300/10 px-2 py-0.5 text-xs text-amber-100">Awaiting approval</span>}
-              </div>
-              <p className="truncate text-sm text-slate-400">
-                {song.artist} • {formatTime(song.duration)} • added by {song.addedBy === "you" ? "You" : userName(song.addedBy)}
-              </p>
-            </div>
-            <div className="flex items-center gap-1">
-              <button onClick={() => voteSong(song.queueId, 1)} className="rounded-lg p-2 text-slate-300 hover:bg-white/10 hover:text-white" aria-label={`Upvote ${song.title}`}>
-                <ChevronUp size={17} />
-              </button>
-              <span className="w-7 text-center text-sm font-black">{song.votes}</span>
-              <button onClick={() => voteSong(song.queueId, -1)} className="rounded-lg p-2 text-slate-300 hover:bg-white/10 hover:text-white" aria-label={`Downvote ${song.title}`}>
-                <ChevronDown size={17} />
-              </button>
-              {canManage && (
-                <>
-                  {!song.approved && (
-                    <button onClick={() => approveSong(song.queueId)} className="rounded-lg border border-green-200/20 px-2 py-2 text-xs font-bold text-green-100 hover:bg-green-400/15" aria-label={`Approve ${song.title}`}>
-                      Approve
-                    </button>
-                  )}
-                  <button onClick={() => moveSong(song.queueId, -1)} disabled={index <= 1} className="hidden rounded-lg p-2 text-slate-300 hover:bg-white/10 disabled:opacity-35 sm:block" aria-label={`Move ${song.title} up`}>
-                    <SlidersHorizontal size={16} />
-                  </button>
-                  <button onClick={() => removeSong(song.queueId)} className="rounded-lg p-2 text-rose-200 hover:bg-rose-400/15" aria-label={`Remove ${song.title}`}>
-                    <Trash2 size={16} />
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
+          <QueueRow
+            key={song.queueId}
+            song={song}
+            index={index}
+            isCurrent={song.queueId === currentSongId}
+            isUpNext={index === 1 && song.approved}
+            canManage={canManage}
+            approveSong={approveSong}
+            removeSong={removeSong}
+            voteSong={voteSong}
+            moveSong={moveSong}
+          />
         ))}
       </div>
     </section>
   );
 }
 
-function PeoplePanel() {
+function QueueRow({
+  song,
+  index,
+  isCurrent,
+  isUpNext,
+  canManage,
+  approveSong,
+  removeSong,
+  voteSong,
+  moveSong
+}: {
+  song: QueueSong;
+  index: number;
+  isCurrent: boolean;
+  isUpNext: boolean;
+  canManage: boolean;
+  approveSong: (queueId: string) => void;
+  removeSong: (queueId: string) => void;
+  voteSong: (queueId: string, delta: 1 | -1) => void;
+  moveSong: (queueId: string, direction: -1 | 1) => void;
+}) {
+  const providerTone = providerQueueTone(song);
+  const status = song.unavailable ? "Unavailable" : !song.approved ? "Pending" : isCurrent ? "Playing" : isUpNext ? "Up next" : null;
+
+  return (
+    <div
+      className={cx(
+        "queue-row group grid grid-cols-[1.35rem_3rem_minmax(0,1fr)_auto] items-center gap-2.5 rounded-xl p-2.5 transition sm:grid-cols-[1.5rem_3.25rem_minmax(0,1fr)_auto]",
+        isCurrent && "is-current queue-row-current",
+        isUpNext && "queue-row-up-next",
+        !song.approved && "queue-row-pending",
+        song.unavailable ? "queue-row-unavailable opacity-70" : "hover:bg-white/[0.04]"
+      )}
+      aria-label={`${song.title} by ${song.artist}, ${status ?? "queued"}, ${song.votes} votes`}
+      aria-current={isCurrent ? "true" : undefined}
+    >
+      <span className={`grid h-7 w-7 place-items-center rounded-lg text-xs font-black ${isCurrent ? "bg-green-300/15 text-green-100" : isUpNext ? "bg-cyan-300/12 text-cyan-100" : "bg-white/[0.04] text-slate-500"}`}>
+        {index + 1}
+      </span>
+
+      <div className="relative">
+        <AlbumArt song={song} />
+        {isCurrent && <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-slate-950 bg-green-300" aria-hidden="true" />}
+      </div>
+
+      <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="truncate font-black text-white sm:font-bold">{song.title}</p>
+          {status && <span className={`badge hidden shrink-0 sm:inline-flex ${statusTone(status)}`}>{status}</span>}
+          {song.sourceProvider && <span className={`badge hidden shrink-0 sm:inline-flex ${providerTone.badge}`}>{song.sourceProvider}</span>}
+        </div>
+        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400 sm:gap-x-3 sm:text-sm">
+          <span className="truncate text-slate-300 sm:text-slate-400">{song.artist}</span>
+          <span className="hidden items-center gap-1 sm:inline-flex"><Music2 size={13} /> {song.addedBy === "you" ? "You" : userName(song.addedBy)}</span>
+          <span className="inline-flex items-center gap-1"><Clock3 size={13} /> {formatTime(song.duration)}</span>
+          {song.sourceProvider && <span className={`inline-flex sm:hidden ${providerTone.text}`}>{song.sourceProvider}</span>}
+          {status && <span className={`inline-flex sm:hidden ${statusTextTone(status)}`}>{status}</span>}
+          {song.sourceUrl && (
+            <a href={song.sourceUrl} target="_blank" rel="noreferrer" className={`hidden items-center gap-1 hover:text-white sm:inline-flex ${providerTone.text}`}>
+              <Link2 size={13} /> Open
+            </a>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-end gap-1">
+        <div className={`grid grid-cols-[2.25rem_2.2rem] overflow-hidden rounded-xl bg-white/[0.045] ${song.userVote ? "ring-1 ring-cyan-200/25" : ""}`}>
+          <button
+            onClick={() => voteSong(song.queueId, 1)}
+            className={`grid h-10 place-items-center transition ${song.userVote === 1 ? "bg-cyan-300/16 text-cyan-100" : "text-slate-300 hover:bg-white/10 hover:text-white"}`}
+            aria-label={`Upvote ${song.title}`}
+            title="Upvote"
+          >
+            <ChevronUp size={17} />
+          </button>
+          <span key={`${song.queueId}-${song.votes}`} className="vote-count grid h-10 place-items-center text-sm font-black text-white" aria-label={`${song.votes} votes`}>{song.votes}</span>
+        </div>
+        <button
+          onClick={() => voteSong(song.queueId, -1)}
+          className={`hidden h-10 w-10 place-items-center rounded-xl transition sm:grid ${song.userVote === -1 ? "bg-rose-300/14 text-rose-100" : "text-slate-400 hover:bg-white/10 hover:text-white"}`}
+          aria-label={`Downvote ${song.title}`}
+          title="Downvote"
+        >
+          <ChevronDown size={17} />
+        </button>
+        {canManage && (
+          <div className="hidden items-center gap-1 border-l border-white/8 pl-1 sm:flex">
+            {!song.approved && (
+              <button onClick={() => approveSong(song.queueId)} className="badge badge-positive min-h-10 rounded-xl px-2" aria-label={`Approve ${song.title}`} title="Approve song">
+                <ShieldCheck size={14} /> Approve
+              </button>
+            )}
+            <button onClick={() => moveSong(song.queueId, -1)} disabled={index <= 1} className="grid h-10 w-10 place-items-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30" aria-label={`Move ${song.title} up`} title="Move up">
+              <ChevronUp size={16} />
+            </button>
+            <button onClick={() => moveSong(song.queueId, 1)} disabled={isCurrent} className="grid h-10 w-10 place-items-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30" aria-label={`Move ${song.title} down`} title="Move down">
+              <ChevronDown size={16} />
+            </button>
+            <button onClick={() => removeSong(song.queueId)} className="grid h-10 w-10 place-items-center rounded-xl text-slate-400 hover:bg-rose-400/15 hover:text-rose-100" aria-label={`Remove ${song.title}`} title="Remove">
+              <Trash2 size={16} />
+            </button>
+          </div>
+        )}
+        {canManage && (
+          <details className="relative sm:hidden">
+            <summary className="grid h-10 w-10 cursor-pointer list-none place-items-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white" aria-label={`More actions for ${song.title}`} title="Song actions">
+              <MoreVertical size={17} />
+            </summary>
+            <div className="details-popover absolute right-0 z-20 mt-2 w-44 rounded-xl border border-white/10 bg-slate-950/96 p-1.5 shadow-2xl shadow-black/50 backdrop-blur">
+              {!song.approved && (
+                <button onClick={() => approveSong(song.queueId)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-bold text-green-100 hover:bg-green-300/10" aria-label={`Approve ${song.title}`}>
+                  <ShieldCheck size={15} /> Approve
+                </button>
+              )}
+              <button onClick={() => moveSong(song.queueId, -1)} disabled={index <= 1} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-bold text-slate-200 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35" aria-label={`Move ${song.title} up`}>
+                <ChevronUp size={15} /> Move up
+              </button>
+              <button onClick={() => moveSong(song.queueId, 1)} disabled={isCurrent} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-bold text-slate-200 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35" aria-label={`Move ${song.title} down`}>
+                <ChevronDown size={15} /> Move down
+              </button>
+              <button onClick={() => removeSong(song.queueId)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-bold text-rose-100 hover:bg-rose-400/15" aria-label={`Remove ${song.title}`}>
+                <Trash2 size={15} /> Remove
+              </button>
+            </div>
+          </details>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function providerQueueTone(song: QueueSong) {
+  if (song.sourceProvider === "YouTube") {
+    return {
+      badge: "badge-youtube",
+      text: "text-red-100"
+    };
+  }
+  if (song.sourceProvider === "Spotify") {
+    return {
+      badge: "badge-spotify",
+      text: "text-green-100"
+    };
+  }
+  if (song.sourceProvider === "Apple Music") {
+    return {
+      badge: "badge-apple",
+      text: "text-pink-100"
+    };
+  }
+  if (song.sourceProvider === "SoundCloud") {
+    return {
+      badge: "badge-soundcloud",
+      text: "text-orange-100"
+    };
+  }
+  if (song.sourceProvider) {
+    return {
+      badge: "badge-info",
+      text: "text-cyan-100"
+    };
+  }
+  return {
+    badge: "badge-neutral",
+    text: "text-slate-400"
+  };
+}
+
+function statusTone(status: string) {
+  if (status === "Playing") return "badge-live";
+  if (status === "Up next") return "badge-info";
+  if (status === "Pending") return "badge-warning";
+  if (status === "Unavailable") return "badge-danger";
+  return "badge-neutral";
+}
+
+function statusTextTone(status: string) {
+  if (status === "Playing") return "text-green-100";
+  if (status === "Up next") return "text-cyan-100";
+  if (status === "Pending") return "text-amber-100";
+  if (status === "Unavailable") return "text-rose-100";
+  return "text-slate-400";
+}
+
+function PeoplePanel({ embedded = false }: { embedded?: boolean }) {
   const users = useJamStore((state) => state.users);
   const viewMode = useJamStore((state) => state.viewMode);
   const removeUser = useJamStore((state) => state.removeUser);
   const addToast = useJamStore((state) => state.addToast);
+  const listeningCount = users.filter((user) => user.listening).length;
+  const onlineCount = users.filter((user) => user.online).length;
 
   return (
-    <section className="panel rounded-2xl p-4">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-black">People</h2>
-          <p className="text-sm text-slate-400">{users.filter((user) => user.listening).length} currently listening</p>
+    <section className={embedded ? "rounded-xl p-1" : "mobile-people-screen panel rounded-2xl p-4"}>
+      {!embedded && (
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="section-title">People</h2>
+            <p className="metadata text-sm">{listeningCount} listening · {onlineCount} online</p>
+          </div>
+          <button onClick={() => addToast("Invite link copied")} className={`${buttonStyles.secondary} min-h-11 px-3 py-2`} aria-label="Copy invite link" title="Copy invite link">
+            <Link2 size={16} /> Invite Friends
+          </button>
         </div>
-        <button onClick={() => addToast("Invite link copied")} className="rounded-xl border border-white/10 px-3 py-2 text-sm font-bold hover:bg-white/10">
-          Invite Friends
-        </button>
-      </div>
+      )}
+      {embedded && <p className="mb-2 px-2 text-sm text-slate-400">{listeningCount} listening · {onlineCount} online</p>}
       <div className="grid gap-2">
         {users.length === 0 && <EmptyState icon={<Users />} title="No one is in the room yet" text="Invite friends or start Demo Mode to see the room feel alive." />}
         {users.map((user) => (
-          <div key={user.id} className="flex items-center gap-3 rounded-xl border border-white/8 bg-transparent p-2.5 transition hover:bg-white/[0.04]">
-            <Avatar user={user} />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <p className="truncate font-bold">{user.name}</p>
-                {user.role === "host" ? <span className="rounded-full bg-violet-300/15 px-2 py-0.5 text-xs text-violet-100">Host</span> : <span className="rounded-full bg-white/8 px-2 py-0.5 text-xs text-slate-300">Guest</span>}
-              </div>
-              <p className="text-sm text-slate-400">{user.online ? "Online" : "Away"} {user.listening ? "• listening" : ""}</p>
+          <div key={user.id} className={`group flex min-h-[4.35rem] items-center gap-3 rounded-xl p-2.5 transition hover:bg-white/[0.04] max-lg:bg-white/[0.025] ${user.role === "host" ? "bg-violet-400/[0.08] ring-1 ring-violet-200/12" : "bg-transparent"}`}>
+            <div className="relative">
+              <Avatar user={user} />
+              <span className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-slate-950 ${user.online ? "bg-green-300" : "bg-slate-600"}`} aria-hidden="true" />
             </div>
-            <span className={`h-2.5 w-2.5 rounded-full ${user.online ? "bg-green-300" : "bg-slate-600"}`} />
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-2">
+                <p className="truncate font-bold">{user.name}</p>
+                {user.role === "host" && <span className="badge badge-primary shrink-0">Host</span>}
+              </div>
+              <p className="mt-1 flex min-w-0 items-center gap-2 text-sm text-slate-400">
+                <span>{user.role === "host" ? "Host" : "Guest"}</span>
+                <span className="h-1 w-1 rounded-full bg-slate-700" />
+                <span>{user.online ? "Online" : "Away"}</span>
+                {user.listening && (
+                  <>
+                    <span className="h-1 w-1 rounded-full bg-slate-700" />
+                    <span className="inline-flex items-center gap-1 text-green-100">
+                      <span className="listening-bars" aria-hidden="true"><i /><i /><i /></span>
+                      Listening
+                    </span>
+                  </>
+                )}
+              </p>
+            </div>
             {viewMode === "host" && user.role !== "host" && (
-              <button onClick={() => removeUser(user.id)} className="rounded-lg p-2 text-slate-300 hover:bg-white/10" aria-label={`Remove ${user.name}`}>
-                <UserMinus size={16} />
-              </button>
+              <details className="relative">
+                <summary className={`${buttonStyles.icon} h-10 w-10 cursor-pointer list-none opacity-100 sm:opacity-0 sm:group-hover:opacity-100`} aria-label={`Manage ${user.name}`} title={`Manage ${user.name}`}>
+                  <MoreVertical size={16} />
+                </summary>
+                <div className="details-popover absolute right-0 z-20 mt-2 w-40 rounded-xl border border-white/10 bg-slate-950/96 p-1.5 shadow-2xl shadow-black/50 backdrop-blur">
+                  <button onClick={() => confirmDestructive(`Remove ${user.name} from this room?`, () => removeUser(user.id))} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-bold text-rose-100 hover:bg-rose-400/15">
+                    <UserMinus size={15} /> Remove guest
+                  </button>
+                </div>
+              </details>
             )}
           </div>
         ))}
@@ -1051,7 +1806,7 @@ function PeoplePanel() {
   );
 }
 
-function ChatPanel() {
+function ChatPanel({ embedded = false }: { embedded?: boolean }) {
   const chat = useJamStore((state) => state.chat);
   const users = useJamStore((state) => state.users);
   const sendMessage = useJamStore((state) => state.sendMessage);
@@ -1064,38 +1819,62 @@ function ChatPanel() {
   };
 
   return (
-    <section className="panel rounded-2xl p-4">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-black">Live chat</h2>
-        <MessageCircle className="text-fuchsia-200" />
-      </div>
-      <div className="grid max-h-[420px] gap-3 overflow-y-auto pr-1">
+    <section className={embedded ? "rounded-xl p-1" : "mobile-chat-screen panel rounded-2xl p-4"}>
+      {!embedded && (
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="section-title">Chat</h2>
+            <p className="metadata text-sm">Room messages and reactions</p>
+          </div>
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-white/[0.055] text-slate-200">
+            <MessageCircle size={20} />
+          </div>
+        </div>
+      )}
+      <div className={`${embedded ? "max-h-[31rem]" : "max-h-[min(520px,58vh)]"} chat-scroll grid gap-3 overflow-y-auto pr-1 max-lg:max-h-none max-lg:overflow-visible max-lg:pr-0`}>
         {chat.length === 0 && <EmptyState icon={<MessageCircle />} title="Chat is quiet" text="Send the first message or start Demo Mode to load a realistic conversation." />}
         {chat.map((messageItem) => {
           const user = users.find((item) => item.id === messageItem.userId);
           const isYou = messageItem.userId === "you";
+          if (messageItem.system) {
+            return (
+              <div key={messageItem.id} className="chat-system-message motion-enter flex justify-center">
+                <div className="max-w-[92%] rounded-full border border-cyan-200/10 bg-cyan-200/[0.055] px-3 py-2 text-center text-xs font-bold leading-5 text-cyan-50/80">
+                  {messageItem.text}
+                  <span className="ml-2 font-normal text-cyan-100/45">{messageItem.time}</span>
+                </div>
+              </div>
+            );
+          }
           return (
-            <div key={messageItem.id} className={`flex gap-3 ${isYou ? "justify-end" : ""} ${messageItem.system ? "rounded-xl bg-white/[0.035] p-3 text-sm text-slate-300" : ""}`}>
-              {!messageItem.system && user && <Avatar user={user} small />}
-              <div className={`min-w-0 ${!messageItem.system ? `max-w-[82%] rounded-2xl px-3 py-2 ${isYou ? "bg-violet-500/35 text-white" : "bg-white/[0.06]"}` : ""}`}>
-                {!messageItem.system && (
-                  <p className="text-sm font-bold">
-                    {user?.name ?? "Guest"} <span className="font-normal text-slate-500">{messageItem.time}</span>
-                  </p>
+            <div key={messageItem.id} className={`chat-message-row motion-enter flex gap-2.5 ${isYou ? "justify-end" : ""}`}>
+              {!isYou && user && <Avatar user={user} small />}
+              <div className={`chat-bubble min-w-0 max-w-[82%] rounded-2xl border px-3 py-2 max-lg:max-w-[84%] ${isYou ? "border-violet-200/20 bg-violet-500/35 text-white" : "border-white/8 bg-white/[0.06]"}`}>
+                <div className="mb-1 flex min-w-0 items-baseline gap-2">
+                  <p className="truncate text-sm font-black">{user?.name ?? "Guest"}</p>
+                  <span className="shrink-0 text-[0.68rem] font-medium text-slate-500">{messageItem.time}</span>
+                </div>
+                <p className="whitespace-pre-wrap break-words text-sm leading-5">{messageItem.text}</p>
+                {messageItem.reactions.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {messageItem.reactions.map((reaction, index) => (
+                      <span key={`${reaction}-${index}`} className="rounded-full bg-white/10 px-2 py-0.5 text-xs">
+                        {reaction}
+                      </span>
+                    ))}
+                  </div>
                 )}
-                <p className="break-words text-sm">{messageItem.text}</p>
-                {messageItem.reactions.length > 0 && <p className="mt-1 text-sm">{messageItem.reactions.join(" ")}</p>}
               </div>
             </div>
           );
         })}
       </div>
-      <form onSubmit={submit} className="mt-4 grid grid-cols-[1fr_auto] gap-2">
+      <form onSubmit={submit} className="chat-composer mt-4 grid grid-cols-[1fr_auto] gap-2">
         <label className="sr-only" htmlFor="chat-message">
           Message
         </label>
-        <input id="chat-message" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Send a message..." className="min-w-0 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white placeholder:text-slate-500" />
-        <button className="grid h-12 w-12 place-items-center rounded-xl bg-white text-slate-950" aria-label="Send message">
+        <input id="chat-message" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Send a message..." autoComplete="off" className={`${inputStyles.base} min-w-0`} />
+        <button disabled={!message.trim()} className={`${buttonStyles.neutral} h-12 w-12 p-0`} aria-label="Send message" title="Send message">
           <Send size={18} />
         </button>
       </form>
@@ -1107,96 +1886,149 @@ function HostDashboard() {
   const viewMode = useJamStore((state) => state.viewMode);
   const room = useJamStore((state) => state.room);
   const queue = useJamStore((state) => state.queue);
+  const users = useJamStore((state) => state.users);
   const currentSongId = useJamStore((state) => state.currentSongId);
-  const progress = useJamStore((state) => state.progress);
-  const volume = useJamStore((state) => state.volume);
   const isPlaying = useJamStore((state) => state.isPlaying);
+  const volume = useJamStore((state) => state.volume);
   const togglePlay = useJamStore((state) => state.togglePlay);
   const skipSong = useJamStore((state) => state.skipSong);
   const clearQueue = useJamStore((state) => state.clearQueue);
   const shuffleQueue = useJamStore((state) => state.shuffleQueue);
   const toggleSetting = useJamStore((state) => state.toggleSetting);
   const setVolume = useJamStore((state) => state.setVolume);
+  const removeUser = useJamStore((state) => state.removeUser);
   const endRoom = useJamStore((state) => state.endRoom);
   const addToast = useJamStore((state) => state.addToast);
-  const current = queue.find((song) => song.queueId === currentSongId);
+  const current = queue.find((song) => song.queueId === currentSongId) ?? queue[0];
+  const upcomingCount = Math.max(queue.length - (current ? 1 : 0), 0);
+  const guests = users.filter((user) => user.role !== "host");
+  const invite = `${PROJECT_LINKS.app.replace(/\/$/, "")}?room=${room?.code ?? ""}`;
 
   if (viewMode !== "host") {
     return (
-      <section className="panel rounded-2xl p-4">
-        <h2 className="text-xl font-black">Guest view</h2>
-        <p className="mt-2 text-sm text-slate-300">Host-only controls are hidden. Guests can chat, react, vote, and add songs when permissions allow.</p>
-        <button onClick={() => useJamStore.getState().addToast("Host controls are only available in Host View.")} className="mt-4 rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-white hover:bg-white/10">
-          Try a host-only action
-        </button>
+      <section className="panel rounded-2xl p-3">
+        <h2 className="section-title text-base">Guest mode</h2>
+        <p className="metadata mt-1 text-sm">Host controls are hidden. Guests can chat, react, vote, and add songs when permissions allow.</p>
       </section>
     );
   }
 
   return (
-    <section className="panel rounded-2xl p-4">
-      <div className="mb-4 flex items-center justify-between gap-2">
+    <details className="host-dashboard panel rounded-2xl p-3" open>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-1 py-1">
         <div className="flex items-center gap-2">
           <Gauge className="text-cyan-200" />
-          <h2 className="text-xl font-black">Host dashboard</h2>
+          <div>
+            <h2 className="section-title text-base">Host Dashboard</h2>
+            <p className="metadata text-xs">Control the room without leaving the music.</p>
+          </div>
         </div>
-        <span className="rounded-full bg-violet-400/20 px-3 py-1 text-xs font-black text-violet-100">Host</span>
+        <ChevronDown size={16} className="text-slate-400" />
+      </summary>
+
+      <div className="details-panel mt-4 grid gap-3">
+        <section className="host-control-group">
+          <div className="host-control-heading">
+            <p>Playback</p>
+            <span className="truncate">{current?.title ?? "Nothing playing"}</span>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button onClick={togglePlay} className="host-action" aria-pressed={isPlaying} aria-label={isPlaying ? "Pause host playback" : "Play host playback"}>
+              {isPlaying ? <Pause size={15} /> : <Play size={15} />} {isPlaying ? "Pause" : "Play"}
+            </button>
+            <button onClick={skipSong} className="host-action" aria-label="Skip current song">
+              <SkipForward size={15} /> Skip
+            </button>
+            <button onClick={shuffleQueue} className="host-action" aria-label="Shuffle queue">
+              <Shuffle size={15} /> Shuffle
+            </button>
+            <label className="host-action cursor-pointer">
+              <Volume2 size={15} />
+              <span className="sr-only">Host volume control</span>
+              <input aria-label="Host volume control" aria-valuetext={`${volume}% volume`} value={volume} onChange={(event) => setVolume(Number(event.target.value))} type="range" min="0" max="100" className="range min-w-0 flex-1" />
+            </label>
+          </div>
+        </section>
+
+        <section className="host-control-group">
+          <div className="host-control-heading">
+            <p>Queue</p>
+            <span>{upcomingCount} upcoming</span>
+          </div>
+          <div className="mt-3 grid gap-2">
+            <p className="text-sm leading-5 text-slate-400">Manage song order and approvals in the Queue panel.</p>
+            <button onClick={() => confirmDestructive("Clear all upcoming songs? The current song will keep playing.", clearQueue)} className="host-danger-soft" aria-label="Clear upcoming queue">
+              <Trash2 size={15} /> Clear upcoming queue
+            </button>
+          </div>
+        </section>
+
+        <section className="host-control-group">
+          <div className="host-control-heading">
+            <p>Room</p>
+            <span>{room?.code}</span>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button onClick={() => copyText(room?.code ?? "", addToast, "Room code copied")} className="host-action">
+              <Copy size={15} /> Copy code
+            </button>
+            <button onClick={() => copyText(invite, addToast, "Invite link copied")} className="host-action">
+              <Link2 size={15} /> Copy invite
+            </button>
+          </div>
+        </section>
+
+        <section className="host-control-group">
+          <div className="host-control-heading">
+            <p>Guest permissions</p>
+            <span>{room?.requireApproval ? "Approval on" : "Open queue"}</span>
+          </div>
+          <div className="mt-3 grid gap-2">
+            <CompactToggle label="Guests can add songs" checked={Boolean(room?.guestsCanAdd)} onChange={() => toggleSetting("guestsCanAdd")} />
+            <CompactToggle label="Require approval" checked={Boolean(room?.requireApproval)} onChange={() => toggleSetting("requireApproval")} />
+          </div>
+        </section>
+
+        <section className="host-control-group">
+          <div className="host-control-heading">
+            <p>Participants</p>
+            <span>{guests.length} guests</span>
+          </div>
+          <div className="mt-3 grid gap-1.5">
+            {guests.length === 0 && <p className="metadata text-sm">No guests to manage yet.</p>}
+            {guests.slice(0, 4).map((user) => (
+              <div key={user.id} className="flex items-center justify-between gap-2 rounded-lg bg-white/[0.025] px-2 py-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Avatar user={user} small />
+                  <span className="truncate text-sm font-bold text-white">{user.name}</span>
+                </div>
+                <details className="relative">
+                  <summary className={`${buttonStyles.icon} h-9 w-9 cursor-pointer list-none`} aria-label={`Manage ${user.name}`}>
+                    <MoreVertical size={15} />
+                  </summary>
+                  <div className="details-popover absolute right-0 z-20 mt-2 w-40 rounded-xl border border-white/10 bg-slate-950/96 p-1.5 shadow-2xl shadow-black/50 backdrop-blur">
+                    <button onClick={() => confirmDestructive(`Remove ${user.name} from this room?`, () => removeUser(user.id))} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-bold text-rose-100 hover:bg-rose-400/15">
+                      <UserMinus size={15} /> Remove guest
+                    </button>
+                  </div>
+                </details>
+              </div>
+            ))}
+            {guests.length > 4 && <p className="text-xs text-slate-500">More guests can be managed in People.</p>}
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-rose-300/18 bg-rose-400/[0.055] p-3">
+          <div className="host-control-heading">
+            <p className="text-rose-100">Danger zone</p>
+            <span>Host only</span>
+          </div>
+          <button onClick={() => confirmDestructive("End this room for everyone?", endRoom)} className={`${buttonStyles.destructive} mt-3 min-h-10 w-full`}>
+            <LogOut size={15} /> End Room
+          </button>
+        </section>
       </div>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.05fr_0.85fr_1.1fr]">
-        <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
-          <p className="text-sm font-bold text-slate-300">Playback</p>
-          <div className="mt-4 flex items-center gap-3">
-            <AlbumArt song={current} />
-            <div className="min-w-0">
-              <p className="truncate font-black">{current?.title ?? "Nothing playing"}</p>
-              <p className="truncate text-sm text-slate-400">{current?.artist ?? "Add a song to begin"}</p>
-            </div>
-          </div>
-          <input aria-label="Host playback progress" value={progress} readOnly type="range" min="0" max="100" className="range mt-4 w-full" />
-          <div className="mt-4 flex items-center justify-center gap-3">
-            <IconButton label={isPlaying ? "Pause playback" : "Play playback"} onClick={togglePlay}>{isPlaying ? <Pause size={18} /> : <Play size={18} />}</IconButton>
-            <IconButton label="Skip song" onClick={skipSong}><SkipForward size={18} /></IconButton>
-          </div>
-        </div>
-        <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
-          <p className="text-sm font-bold text-slate-300">Controls</p>
-          <div className="mt-4 grid gap-2">
-            <button onClick={togglePlay} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold hover:bg-white/10">{isPlaying ? <Pause size={15} /> : <Play size={15} />} {isPlaying ? "Pause playback" : "Play playback"}</button>
-            <button onClick={skipSong} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold hover:bg-white/10"><SkipForward size={15} /> Skip song</button>
-            <button onClick={clearQueue} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold hover:bg-white/10"><Trash2 size={15} /> Clear queue</button>
-            <button onClick={shuffleQueue} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold hover:bg-white/10"><Shuffle size={15} /> Shuffle queue</button>
-          </div>
-        </div>
-        <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
-          <p className="text-sm font-bold text-slate-300">Room info</p>
-          <div className="mt-4 grid gap-3">
-            <div>
-              <p className="text-xs text-slate-500">Room code</p>
-              <button onClick={() => copyText(room?.code ?? "", addToast, "Room code copied")} className="mt-1 flex w-full items-center justify-between rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-left font-black tracking-[0.18em]">
-                {room?.code}<Copy size={15} className="tracking-normal text-slate-400" />
-              </button>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">Invite link</p>
-              <button onClick={() => copyText(`${PROJECT_LINKS.app.replace(/\/$/, "")}?room=${room?.code ?? ""}`, addToast, "Invitation copied")} className="mt-1 flex w-full items-center justify-between rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-left text-xs text-slate-300">
-                jamroom.app/{room?.code}<Copy size={15} className="text-slate-400" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_1fr]">
-        <label className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.035] p-4">
-          <span className="font-bold text-white">Volume</span>
-          <span className="w-24"><input aria-label="Host volume control" value={volume} onChange={(event) => setVolume(Number(event.target.value))} type="range" min="0" max="100" className="range w-full" /></span>
-        </label>
-        <Toggle label="Guests can add songs" checked={Boolean(room?.guestsCanAdd)} onChange={() => toggleSetting("guestsCanAdd")} />
-        <Toggle label="Require song approval" checked={Boolean(room?.requireApproval)} onChange={() => toggleSetting("requireApproval")} />
-        <button onClick={endRoom} className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-300/25 bg-rose-400/10 px-4 py-3 font-bold text-rose-100 hover:bg-rose-400/15">
-          <LogOut size={17} /> End Room
-        </button>
-      </div>
-    </section>
+    </details>
   );
 }
 
@@ -1205,16 +2037,20 @@ function CompactPlayer() {
   const currentSongId = useJamStore((state) => state.currentSongId);
   const isPlaying = useJamStore((state) => state.isPlaying);
   const togglePlay = useJamStore((state) => state.togglePlay);
+  const setMobileTab = useJamStore((state) => state.setMobileTab);
   const current = queue.find((song) => song.queueId === currentSongId) ?? queue[0];
 
   return (
-    <div className="glass fixed inset-x-3 bottom-[4.75rem] z-30 flex items-center gap-3 rounded-2xl p-2 lg:hidden">
-      <AlbumArt song={current} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-black">{current?.title}</p>
-        <p className="truncate text-xs text-slate-400">{current?.artist}</p>
-      </div>
-      <button onClick={togglePlay} className="grid h-10 w-10 place-items-center rounded-full bg-white text-slate-950" aria-label={isPlaying ? "Pause" : "Play"}>
+    <div className="glass compact-player fixed inset-x-3 bottom-[5.15rem] z-30 flex items-center gap-2 rounded-2xl p-2 shadow-2xl shadow-black/50 lg:hidden">
+      <button type="button" onClick={() => setMobileTab("player")} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1 text-left transition hover:bg-white/[0.04]" aria-label="Return to player">
+        <AlbumArt song={current} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-black">{current?.title}</span>
+          <span className="block truncate text-xs text-slate-400">{current?.artist}</span>
+        </span>
+      </button>
+      <span className="badge badge-live hidden sm:inline-flex">Live</span>
+      <button type="button" onClick={togglePlay} className={`play-toggle grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,#7c3aed,#d946ef)] text-white ${isPlaying ? "is-playing" : ""}`} aria-label={isPlaying ? "Pause compact player" : "Play compact player"} aria-pressed={isPlaying}>
         {isPlaying ? <Pause size={18} /> : <Play size={18} />}
       </button>
     </div>
@@ -1228,66 +2064,87 @@ function useDemoPulse() {
   const progress = useJamStore((state) => state.progress);
   const setProgress = useJamStore((state) => state.setProgress);
   const skipSong = useJamStore((state) => state.skipSong);
-  const addReaction = useJamStore((state) => state.addReaction);
-  const addSong = useJamStore((state) => state.addSong);
-  const voteSong = useJamStore((state) => state.voteSong);
   const queue = useJamStore((state) => state.queue);
+  const scriptedDemoRun = useRef<string | null>(null);
 
   useEffect(() => {
     if (screen !== "room" || !isPlaying) return;
+    const current = queue.find((song) => song.queueId === useJamStore.getState().currentSongId);
+    if (current?.sourceProvider === "YouTube") return;
     const timer = window.setInterval(() => {
       const next = progress + 1;
       if (next >= 100) skipSong();
       else setProgress(next);
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [screen, isPlaying, progress, setProgress, skipSong]);
+  }, [screen, isPlaying, progress, setProgress, skipSong, queue]);
 
   useEffect(() => {
-    if (screen !== "room" || room?.code !== "JAM247") return;
-    const timer = window.setInterval(() => {
-      const action = Math.random();
-      if (action < 0.5) addReaction(["🔥", "💜", "✨", "🙌"][Math.floor(Math.random() * 4)]);
-      else if (action < 0.76) voteSong(queue[Math.max(1, Math.floor(Math.random() * queue.length))]?.queueId ?? "", 1);
-      else addSong(library[Math.floor(Math.random() * library.length)], guestAdderIds[Math.floor(Math.random() * guestAdderIds.length)]);
-    }, 6500);
-    return () => window.clearInterval(timer);
-  }, [screen, room?.code, addReaction, addSong, voteSong, queue]);
+    if (screen !== "room" || room?.code !== "JAM247" || !room.demoRunId) return;
+    if (scriptedDemoRun.current === room.demoRunId) return;
+    scriptedDemoRun.current = room.demoRunId;
+
+    const timers = [
+      window.setTimeout(() => useJamStore.getState().addReaction("✨"), 3200),
+      window.setTimeout(() => {
+        useJamStore.setState((state) => ({
+          users: state.users.map((user) => (user.id === "noor" ? { ...user, online: true, listening: true } : user)),
+          chat: [
+            ...state.chat,
+            { id: `demo-join-${Date.now()}`, userId: "system", text: "Noor joined from the invite link", time: "now", reactions: [], system: true }
+          ]
+        }));
+      }, 6600),
+      window.setTimeout(() => {
+        const state = useJamStore.getState();
+        const target = state.queue.find((song) => song.approved && song.queueId !== state.currentSongId);
+        if (target) state.voteSong(target.queueId, 1);
+      }, 9400),
+      window.setTimeout(() => {
+        useJamStore.setState((state) => ({
+          chat: [
+            ...state.chat,
+            { id: `demo-chat-${Date.now()}`, userId: "maya", text: "This queue is already locked in.", time: "now", reactions: [] }
+          ]
+        }));
+      }, 12400),
+      window.setTimeout(() => {
+        useJamStore.setState((state) => {
+          if (state.queue.some((song) => song.id === "mono") || state.queue.length >= 12) return state;
+          const nextSong = createQueueItem(library[10], state.queue.length, "ari", true);
+          nextSong.votes = 4;
+          return {
+            queue: sortedQueue([...state.queue, nextSong], state.currentSongId),
+            chat: [
+              ...state.chat,
+              { id: `demo-add-${Date.now()}`, userId: "system", text: "Ari added Monorail Hearts", time: "now", reactions: [], system: true }
+            ]
+          };
+        });
+      }, 15600)
+    ];
+
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [screen, room?.code, room?.demoRunId]);
 }
 
-function DemoIntroDialog({ onClose }: { onClose: () => void }) {
-  const [hideAgain, setHideAgain] = useState(false);
-
+function DemoHint({ onClose }: { onClose: () => void }) {
   return (
-    <Modal title="Welcome to JamRoom" onClose={onClose}>
-      <p className="text-sm leading-6 text-slate-300">
-        JamRoom is a real-time-style social listening demo where friends share a room, shape the queue, react, and chat while the player stays in sync.
-      </p>
-      <p className="mt-3 rounded-xl border border-amber-200/20 bg-amber-300/10 p-3 text-sm text-amber-50">
-        Music playback and service integrations are simulated for this portfolio version. No Spotify, Apple Music, YouTube, or SoundCloud account is required.
-      </p>
-      <div className="mt-5 grid gap-2 text-sm text-slate-200">
-        {["Switch between Host and Guest", "Add and vote on songs", "Send messages and reactions"].map((item) => (
-          <div key={item} className="flex items-center gap-3 rounded-xl bg-white/[0.045] p-3">
-            <Sparkles size={16} className="shrink-0 text-cyan-200" />
-            {item}
-          </div>
-        ))}
+    <div className="demo-hint mt-4 flex flex-col gap-3 rounded-2xl border border-cyan-200/15 bg-cyan-200/[0.07] p-4 text-sm text-cyan-50 shadow-xl shadow-cyan-950/10 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-cyan-200/10 text-cyan-100">
+          <Sparkles size={17} />
+        </span>
+        <div className="min-w-0">
+          <p className="font-black text-white">You’re viewing a live JamRoom demo.</p>
+          <p className="mt-1 leading-6 text-cyan-50/85">Try switching between Host and Guest, adding a song, voting, or sending a message.</p>
+          <p className="mt-1 text-xs font-bold text-cyan-100/70">Room activity is simulated. YouTube links use the real embedded player.</p>
+        </div>
       </div>
-      <label className="mt-5 flex items-center gap-3 text-sm text-slate-300">
-        <input type="checkbox" checked={hideAgain} onChange={(event) => setHideAgain(event.target.checked)} className="h-5 w-5 accent-violet-400" />
-        Do not show again
-      </label>
-      <button
-        onClick={() => {
-          if (hideAgain) window.localStorage.setItem(DEMO_INTRO_STORAGE_KEY, "true");
-          onClose();
-        }}
-        className="mt-5 w-full rounded-xl bg-white px-5 py-3 font-black text-slate-950 hover:scale-[1.01]"
-      >
-        Start Exploring
+      <button onClick={onClose} className={`${buttonStyles.secondary} min-h-10 shrink-0 px-3 py-2`} aria-label="Dismiss demo hint">
+        <X size={16} /> Dismiss
       </button>
-    </Modal>
+    </div>
   );
 }
 
@@ -1303,10 +2160,10 @@ function AboutDemoDialog({ onClose }: { onClose: () => void }) {
         <InfoBlock title="Production Needs">Provider OAuth, licensed playback APIs, realtime backend, durable database, moderation, auth, analytics, deployment secrets, and provider compliance review.</InfoBlock>
       </div>
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <a href={PROJECT_LINKS.github} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 font-bold text-white hover:bg-white/10">
+        <a href={PROJECT_LINKS.github} className={buttonStyles.secondary}>
           <Github size={17} /> View Source on GitHub
         </a>
-        <a href={PROJECT_LINKS.portfolio} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 font-bold text-slate-950">
+        <a href={PROJECT_LINKS.portfolio} className={buttonStyles.neutral}>
           <Home size={17} /> Back to Portfolio
         </a>
       </div>
@@ -1316,22 +2173,42 @@ function AboutDemoDialog({ onClose }: { onClose: () => void }) {
 
 function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const previousFocus = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
+    previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeRef.current?.focus();
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
+      if (event.key !== "Tab") return;
+      const focusable = panelRef.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusable?.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+      previousFocus.current?.focus();
+    };
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/78 px-4 py-8 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-      <div className="glass max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl p-5 shadow-2xl sm:p-6">
+    <div className="modal-backdrop fixed inset-0 z-50 grid place-items-center bg-slate-950/78 px-4 py-8 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div ref={panelRef} className="modal-panel glass max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl p-5 shadow-2xl sm:p-6">
         <div className="mb-5 flex items-center justify-between gap-4">
           <h2 id="modal-title" className="text-2xl font-black">{title}</h2>
-          <button ref={closeRef} onClick={onClose} className="grid h-11 w-11 place-items-center rounded-xl border border-white/10 text-slate-200 hover:bg-white/10" aria-label="Close dialog">
+          <button ref={closeRef} onClick={onClose} className={buttonStyles.icon} aria-label="Close dialog">
             <X size={18} />
           </button>
         </div>
@@ -1374,7 +2251,18 @@ function AlbumArt({ song, large = false }: { song?: Pick<Song, "title" | "cover"
       style={{ "--from": cover[0], "--via": cover[1], "--to": cover[2] } as React.CSSProperties}
       aria-label={song ? `${song.title} album artwork` : "Album artwork placeholder"}
     >
-      <span className={`${large ? "text-6xl" : "text-lg"} font-black text-white/85`}>{song?.title?.slice(0, 1) ?? "J"}</span>
+      {large ? (
+        <div className="album-scene" aria-hidden="true">
+          <span className="sun" />
+          <span className="palm left" />
+          <span className="palm right" />
+          <span className="skyline one" />
+          <span className="skyline two" />
+          <span className="car" />
+        </div>
+      ) : (
+        <span className="text-lg font-black text-white/85">{song?.title?.slice(0, 1) ?? "J"}</span>
+      )}
     </div>
   );
 }
@@ -1469,10 +2357,10 @@ function MiniSong({ song, votes }: { song: Song; votes: number }) {
     <div className="grid grid-cols-[3.5rem_1fr_auto] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-3">
       <AlbumArt song={song} />
       <div className="min-w-0">
-        <p className="truncate font-bold">{song.title}</p>
-        <p className="truncate text-sm text-slate-400">{song.artist}</p>
+        <p className="song-title truncate font-bold">{song.title}</p>
+        <p className="metadata truncate text-sm">{song.artist}</p>
       </div>
-      <span className="rounded-full bg-white/10 px-2 py-1 text-sm font-black">+{votes}</span>
+      <span className="badge badge-neutral">+{votes}</span>
     </div>
   );
 }
@@ -1487,9 +2375,32 @@ function Avatar({ user, small = false }: { user: User; small?: boolean }) {
 
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.035] p-4">
+    <label className="surface-subtle flex cursor-pointer items-center justify-between gap-4 rounded-xl p-4">
       <span className="font-bold text-white">{label}</span>
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-5 w-5 accent-violet-400" />
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-5 w-5 accent-violet-400" aria-label={label} />
+    </label>
+  );
+}
+
+function CompactToggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) {
+  return (
+    <button type="button" onClick={onChange} className="flex min-h-10 items-center justify-between gap-3 rounded-lg bg-white/[0.035] px-3 py-2 text-left text-sm font-bold text-white transition hover:bg-white/[0.08]" role="switch" aria-checked={checked}>
+      <span>{label}</span>
+      <span className={`relative h-6 w-11 rounded-full transition ${checked ? "bg-violet-400" : "bg-white/15"}`}>
+        <span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${checked ? "left-6" : "left-1"}`} />
+      </span>
+    </button>
+  );
+}
+
+function CreateSettingToggle({ label, description, checked, onChange }: { label: string; description: string; checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label className={`flex cursor-pointer items-center justify-between gap-4 rounded-xl border p-4 transition ${checked ? "border-violet-200/35 bg-violet-500/18" : "border-white/10 bg-white/[0.035] hover:bg-white/[0.08]"}`}>
+      <span className="min-w-0">
+        <span className="block font-black text-white">{label}</span>
+        <span className="mt-1 block text-sm leading-5 text-slate-400">{description}</span>
+      </span>
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-6 w-6 shrink-0 accent-violet-400" aria-label={label} />
     </label>
   );
 }
@@ -1503,9 +2414,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+function confirmDestructive(message: string, action: () => void) {
+  if (window.confirm(message)) action();
+}
+
 function IconButton({ children, label, onClick, active = false }: { children: React.ReactNode; label: string; onClick: () => void; active?: boolean }) {
   return (
-    <button onClick={onClick} className={`grid h-11 w-11 place-items-center rounded-xl border border-white/10 transition hover:bg-white/10 ${active ? "bg-violet-400/20 text-violet-100" : "text-slate-200"}`} aria-label={label} title={label}>
+    <button onClick={onClick} className={`${buttonStyles.icon} h-11 w-11 ${active ? "border-violet-200/25 bg-violet-400/18 text-violet-100" : ""}`} aria-label={label} title={label}>
       {children}
     </button>
   );
@@ -1524,14 +2439,109 @@ function EmptyState({ icon, title, text }: { icon: React.ReactNode; title: strin
 function findSong(query: string) {
   const trimmed = query.trim().toLowerCase();
   if (!trimmed) return null;
-  const isUrl = /spotify|apple|youtube|youtu\.be|soundcloud|https?:\/\//.test(trimmed);
-  if (isUrl) return library[Math.abs(hash(trimmed)) % library.length];
+  const linkSong = createSongFromMusicLink(query);
+  if (linkSong) return linkSong;
   return library.find((song) => `${song.title} ${song.artist} ${song.album}`.toLowerCase().includes(trimmed)) ?? null;
 }
 
 function invalidMusicLink(query: string) {
   const trimmed = query.trim().toLowerCase();
   return /^https?:\/\//.test(trimmed) && !/spotify|apple|music\.apple|youtube|youtu\.be|soundcloud/.test(trimmed);
+}
+
+function createSongFromMusicLink(raw: string): Song | null {
+  const input = raw.trim();
+  if (!/^https?:\/\//i.test(input)) return null;
+
+  let url: URL;
+  try {
+    url = new URL(input);
+  } catch {
+    return null;
+  }
+
+  const host = url.hostname.replace(/^www\./, "").toLowerCase();
+  const youtubeId = getYouTubeVideoId(url);
+  if (youtubeId) {
+    return {
+      id: `youtube-${youtubeId}`,
+      title: "YouTube link",
+      artist: "Playable embed",
+      album: host,
+      duration: 210,
+      cover: ["#ef4444", "#7f1d1d", "#020617"],
+      sourceId: youtubeId,
+      sourceUrl: input,
+      sourceProvider: "YouTube",
+      embedUrl: `https://www.youtube.com/embed/${youtubeId}`
+    };
+  }
+
+  if (host.includes("spotify.com")) return musicLinkSong(input, "Spotify", ["#22c55e", "#14532d", "#020617"], host);
+  if (host.includes("music.apple.com") || host.includes("apple.com")) return musicLinkSong(input, "Apple Music", ["#fb7185", "#be123c", "#111827"], host);
+  if (host.includes("soundcloud.com")) return musicLinkSong(input, "SoundCloud", ["#f97316", "#9a3412", "#111827"], host);
+  return null;
+}
+
+function musicLinkSong(sourceUrl: string, sourceProvider: NonNullable<Song["sourceProvider"]>, cover: [string, string, string], host: string): Song {
+  return {
+    id: `${sourceProvider.toLowerCase().replace(/\s+/g, "-")}-${hash(sourceUrl)}`,
+    title: `${sourceProvider} link`,
+    artist: "External music link",
+    album: host,
+    duration: 210,
+    cover,
+    sourceUrl,
+    sourceProvider
+  };
+}
+
+function getYouTubeVideoId(url: URL) {
+  const host = url.hostname.replace(/^www\./, "").toLowerCase();
+  if (host === "youtu.be") return cleanYouTubeId(url.pathname.slice(1));
+  if (host.includes("youtube.com")) {
+    if (url.pathname.startsWith("/watch")) return cleanYouTubeId(url.searchParams.get("v") ?? "");
+    if (url.pathname.startsWith("/shorts/")) return cleanYouTubeId(url.pathname.split("/")[2] ?? "");
+    if (url.pathname.startsWith("/embed/")) return cleanYouTubeId(url.pathname.split("/")[2] ?? "");
+  }
+  return null;
+}
+
+function cleanYouTubeId(value: string) {
+  const id = value.trim().split(/[?&#/]/)[0];
+  return /^[a-zA-Z0-9_-]{11}$/.test(id) ? id : null;
+}
+
+function loadYouTubeApi() {
+  if (typeof window === "undefined") return Promise.reject(new Error("YouTube API is browser-only."));
+  if (window.YT?.Player) return Promise.resolve(window.YT);
+  if (window.jamroomYouTubeApiReady) return window.jamroomYouTubeApiReady;
+
+  window.jamroomYouTubeApiReady = new Promise<YouTubeApi>((resolve, reject) => {
+    const existingScript = document.querySelector<HTMLScriptElement>('script[src="https://www.youtube.com/iframe_api"]');
+    window.onYouTubeIframeAPIReady = () => {
+      if (window.YT?.Player) resolve(window.YT);
+      else reject(new Error("YouTube API loaded without Player."));
+    };
+    if (!existingScript) {
+      const script = document.createElement("script");
+      script.src = "https://www.youtube.com/iframe_api";
+      script.async = true;
+      script.onerror = () => reject(new Error("YouTube API failed to load."));
+      document.head.appendChild(script);
+    }
+  });
+
+  return window.jamroomYouTubeApiReady;
+}
+
+function updateQueuedSongDuration(queueId: string, duration: number) {
+  const { queue } = useJamStore.getState();
+  const song = queue.find((item) => item.queueId === queueId);
+  if (!song || song.duration === duration) return;
+  useJamStore.setState({
+    queue: queue.map((item) => (item.queueId === queueId ? { ...item, duration } : item))
+  });
 }
 
 function copyText(text: string, addToast: (text: string) => void, success: string) {
