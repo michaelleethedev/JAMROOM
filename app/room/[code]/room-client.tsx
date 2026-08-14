@@ -58,6 +58,7 @@ type YouTubePlayer = {
   seekTo: (seconds: number, allowSeekAhead: boolean) => void;
   getCurrentTime: () => number;
   getDuration: () => number;
+  getPlayerState: () => number;
   setVolume: (volume: number) => void;
   destroy: () => void;
 };
@@ -420,7 +421,7 @@ export default function LiveRoomClient({ code }: { code: string }) {
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden px-3 pb-[7rem] pt-3 sm:px-5 lg:pb-5">
+    <main className="live-room-main min-h-screen overflow-x-hidden px-3 pb-[7rem] pt-3 sm:px-5 lg:pb-5">
       <div className="mx-auto grid max-w-[96rem] gap-4">
         <header className="glass flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3">
           <div className="min-w-0">
@@ -699,8 +700,8 @@ function LiveYouTubePlayer({ videoId, player, onEnded, onProgress }: { videoId: 
   const playerRef = useRef<YouTubePlayer | null>(null);
   const onEndedRef = useRef(onEnded);
   const onProgressRef = useRef(onProgress);
-  const lastPlaybackStateRef = useRef<LivePlayerState["playback_state"] | null>(null);
   const lastSeekRef = useRef(player?.position_seconds ?? 0);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     onEndedRef.current = onEnded;
@@ -711,15 +712,18 @@ function LiveYouTubePlayer({ videoId, player, onEnded, onProgress }: { videoId: 
     let cancelled = false;
     loadYouTubeApi().then((api) => {
       if (cancelled || !mountRef.current) return;
+      setIsReady(false);
       playerRef.current?.destroy();
       playerRef.current = new api.Player(mountRef.current, {
         videoId,
-        playerVars: { playsinline: 1, modestbranding: 1 },
+        playerVars: { playsinline: 1, modestbranding: 1, enablejsapi: 1, origin: window.location.origin },
         events: {
           onReady: ({ target }) => {
             target.setVolume(player?.volume ?? 76);
             if (player?.position_seconds) target.seekTo(player.position_seconds, true);
             if (player?.playback_state === "playing") target.playVideo();
+            if (player?.playback_state === "paused") target.pauseVideo();
+            setIsReady(true);
           },
           onStateChange: ({ data }) => {
             if (data === api.PlayerState.ENDED) onEndedRef.current();
@@ -729,32 +733,33 @@ function LiveYouTubePlayer({ videoId, player, onEnded, onProgress }: { videoId: 
     });
     return () => {
       cancelled = true;
+      setIsReady(false);
       playerRef.current?.destroy();
       playerRef.current = null;
     };
   }, [videoId]);
 
   useEffect(() => {
-    if (!playerRef.current) return;
+    if (!isReady || !playerRef.current) return;
     playerRef.current.setVolume(player?.volume ?? 76);
-  }, [player?.volume]);
+  }, [isReady, player?.volume]);
 
   useEffect(() => {
-    if (!playerRef.current || !player?.playback_state || lastPlaybackStateRef.current === player.playback_state) return;
-    lastPlaybackStateRef.current = player.playback_state;
-    if (player.playback_state === "playing") playerRef.current.playVideo();
-    if (player.playback_state === "paused") playerRef.current.pauseVideo();
-  }, [player?.playback_state]);
+    if (!isReady || !playerRef.current || !player?.playback_state) return;
+    const youtubeState = playerRef.current.getPlayerState();
+    if (player.playback_state === "playing" && youtubeState !== window.YT?.PlayerState.PLAYING) playerRef.current.playVideo();
+    if (player.playback_state === "paused" && youtubeState !== window.YT?.PlayerState.PAUSED) playerRef.current.pauseVideo();
+  }, [isReady, player?.playback_state, player?.current_queue_item_id]);
 
   useEffect(() => {
-    if (!playerRef.current || !player) return;
+    if (!isReady || !playerRef.current || !player) return;
     const desiredPosition = player.position_seconds;
     const actualPosition = Math.round(playerRef.current.getCurrentTime());
     if (Math.abs(actualPosition - desiredPosition) > 3 && Math.abs(lastSeekRef.current - desiredPosition) > 1) {
       lastSeekRef.current = desiredPosition;
       playerRef.current.seekTo(desiredPosition, true);
     }
-  }, [player?.current_queue_item_id, player?.position_seconds]);
+  }, [isReady, player?.current_queue_item_id, player?.position_seconds]);
 
   useEffect(() => {
     if (player?.playback_state !== "playing") return;
