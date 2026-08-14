@@ -122,6 +122,10 @@ export function getLiveRoomUrl(code: string) {
   return `${base.replace(/\/$/, "")}/room/${normalizeRoomCode(code)}`;
 }
 
+export function isLocalInviteUrl(url: string) {
+  return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?\//i.test(url);
+}
+
 export function createTrackFromInput(raw: string): ParsedMusicLink {
   const input = raw.trim();
   const parsed = parseMusicUrl(input);

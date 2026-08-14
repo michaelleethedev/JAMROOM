@@ -50,6 +50,7 @@ type PresenceMeta = {
 };
 
 type LoadState = "loading" | "join" | "room" | "ended" | "missing" | "config";
+type LiveLayout = "desktop" | "mobile";
 
 type YouTubePlayer = {
   playVideo: () => void;
@@ -110,6 +111,7 @@ export default function LiveRoomClient({ code }: { code: string }) {
   const [toast, setToast] = useState("");
   const [error, setError] = useState("");
   const userIdRef = useRef<string | null>(null);
+  const layout = useResponsiveLayout();
 
   const isHost = participant?.role === "host";
   const currentSong = queue.find((item) => item.id === player?.current_queue_item_id) ?? null;
@@ -298,10 +300,20 @@ export default function LiveRoomClient({ code }: { code: string }) {
     await supabase.from("votes").upsert({ room_id: item.room_id, queue_item_id: item.id, user_id: participant.user_id, value }, { onConflict: "room_id,queue_item_id,user_id" });
   }
 
-  async function updatePlayer(next: Partial<LivePlayerState>) {
+  const updatePlayer = useCallback(async (next: Partial<LivePlayerState>) => {
     if (!supabase || !room || !isHost) return;
-    await supabase.from("player_state").upsert({ room_id: room.id, ...player, ...next, updated_at: new Date().toISOString() }, { onConflict: "room_id" });
-  }
+    const nextPlayer: LivePlayerState = {
+      room_id: room.id,
+      current_queue_item_id: player?.current_queue_item_id ?? null,
+      playback_state: player?.playback_state ?? "paused",
+      position_seconds: player?.position_seconds ?? 0,
+      volume: player?.volume ?? 76,
+      updated_at: new Date().toISOString(),
+      ...next
+    };
+    setPlayer(nextPlayer);
+    await supabase.from("player_state").upsert(nextPlayer, { onConflict: "room_id" });
+  }, [isHost, player, room, supabase]);
 
   async function skipSong() {
     if (!room || !isHost) return;
@@ -427,38 +439,42 @@ export default function LiveRoomClient({ code }: { code: string }) {
           </div>
         )}
 
-        <section className="hidden gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_25rem]">
-          <div className="grid gap-4">
-            <LivePlayer currentSong={currentSong} player={player} isHost={isHost} onPlayPause={() => updatePlayer({ playback_state: player?.playback_state === "playing" ? "paused" : "playing" })} onSkip={skipSong} onSeek={(position) => updatePlayer({ position_seconds: position })} onVolume={(volume) => updatePlayer({ volume })} />
-            <LiveQueue queue={queue} votes={userVoteBySong} participants={participants} isHost={isHost} room={room} currentItemId={player?.current_queue_item_id ?? null} onAdd={addSong} onVote={voteSong} onRemove={removeSong} onApprove={approveSong} onMove={moveSong} onPlayItem={playQueueItem} />
-          </div>
-          <div className="grid content-start gap-4">
-            <LivePeople participants={participants} presence={presence} isHost={isHost} onRemove={removeParticipant} />
-            <LiveChat messages={messages} participants={participants} onSend={sendMessage} onReaction={sendReaction} />
-            {isHost && room && <LiveHostPanel room={room} player={player} onSetting={updateRoomSettings} onClear={clearUpcomingQueue} onEnd={endRoom} />}
-          </div>
-        </section>
-
-        <section className="lg:hidden">
-          {activeMobileTab === "player" && <LivePlayer currentSong={currentSong} player={player} isHost={isHost} onPlayPause={() => updatePlayer({ playback_state: player?.playback_state === "playing" ? "paused" : "playing" })} onSkip={skipSong} onSeek={(position) => updatePlayer({ position_seconds: position })} onVolume={(volume) => updatePlayer({ volume })} />}
-          {activeMobileTab === "queue" && <LiveQueue queue={queue} votes={userVoteBySong} participants={participants} isHost={isHost} room={room} currentItemId={player?.current_queue_item_id ?? null} onAdd={addSong} onVote={voteSong} onRemove={removeSong} onApprove={approveSong} onMove={moveSong} onPlayItem={playQueueItem} />}
-          {activeMobileTab === "people" && <LivePeople participants={participants} presence={presence} isHost={isHost} onRemove={removeParticipant} />}
-          {activeMobileTab === "chat" && <LiveChat messages={messages} participants={participants} onSend={sendMessage} onReaction={sendReaction} />}
-          {activeMobileTab !== "player" && <CompactLivePlayer song={currentSong} player={player} onClick={() => setActiveMobileTab("player")} />}
-        </section>
+        {layout === "desktop" ? (
+          <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_25rem]">
+            <div className="grid gap-4">
+              <LivePlayer currentSong={currentSong} player={player} isHost={isHost} onPlayPause={() => updatePlayer({ playback_state: player?.playback_state === "playing" ? "paused" : "playing" })} onSkip={skipSong} onSeek={(position) => updatePlayer({ position_seconds: position })} onVolume={(volume) => updatePlayer({ volume })} />
+              <LiveQueue queue={queue} votes={userVoteBySong} participants={participants} isHost={isHost} room={room} currentItemId={player?.current_queue_item_id ?? null} onAdd={addSong} onVote={voteSong} onRemove={removeSong} onApprove={approveSong} onMove={moveSong} onPlayItem={playQueueItem} />
+            </div>
+            <div className="grid content-start gap-4">
+              <LivePeople participants={participants} presence={presence} isHost={isHost} onRemove={removeParticipant} />
+              <LiveChat messages={messages} participants={participants} onSend={sendMessage} onReaction={sendReaction} />
+              {isHost && room && <LiveHostPanel room={room} player={player} onSetting={updateRoomSettings} onClear={clearUpcomingQueue} onEnd={endRoom} />}
+            </div>
+          </section>
+        ) : (
+          <section>
+            {activeMobileTab === "player" && <LivePlayer currentSong={currentSong} player={player} isHost={isHost} onPlayPause={() => updatePlayer({ playback_state: player?.playback_state === "playing" ? "paused" : "playing" })} onSkip={skipSong} onSeek={(position) => updatePlayer({ position_seconds: position })} onVolume={(volume) => updatePlayer({ volume })} />}
+            {activeMobileTab === "queue" && <LiveQueue queue={queue} votes={userVoteBySong} participants={participants} isHost={isHost} room={room} currentItemId={player?.current_queue_item_id ?? null} onAdd={addSong} onVote={voteSong} onRemove={removeSong} onApprove={approveSong} onMove={moveSong} onPlayItem={playQueueItem} />}
+            {activeMobileTab === "people" && <LivePeople participants={participants} presence={presence} isHost={isHost} onRemove={removeParticipant} />}
+            {activeMobileTab === "chat" && <LiveChat messages={messages} participants={participants} onSend={sendMessage} onReaction={sendReaction} />}
+            {activeMobileTab !== "player" && <CompactLivePlayer song={currentSong} player={player} onClick={() => setActiveMobileTab("player")} />}
+          </section>
+        )}
       </div>
 
-      <nav className="mobile-nav fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-white/10 bg-slate-950/94 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur lg:hidden" aria-label="Mobile live room sections">
-        {(["player", "queue", "people", "chat"] as const).map((tab) => (
-          <button key={tab} onClick={() => setActiveMobileTab(tab)} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-xs font-bold capitalize ${activeMobileTab === tab ? "bg-white/10 text-white" : "text-slate-400"}`} aria-current={activeMobileTab === tab ? "page" : undefined}>
-            {tab === "player" && <Play size={18} />}
-            {tab === "queue" && <Music2 size={18} />}
-            {tab === "people" && <Users size={18} />}
-            {tab === "chat" && <MessageCircle size={18} />}
-            {tab}
-          </button>
-        ))}
-      </nav>
+      {layout === "mobile" && (
+        <nav className="mobile-nav fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-white/10 bg-slate-950/94 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur" aria-label="Mobile live room sections">
+          {(["player", "queue", "people", "chat"] as const).map((tab) => (
+            <button key={tab} onClick={() => setActiveMobileTab(tab)} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-xs font-bold capitalize ${activeMobileTab === tab ? "bg-white/10 text-white" : "text-slate-400"}`} aria-current={activeMobileTab === tab ? "page" : undefined}>
+              {tab === "player" && <Play size={18} />}
+              {tab === "queue" && <Music2 size={18} />}
+              {tab === "people" && <Users size={18} />}
+              {tab === "chat" && <MessageCircle size={18} />}
+              {tab}
+            </button>
+          ))}
+        </nav>
+      )}
 
       {messages.filter((message) => message.type === "reaction").slice(-3).map((message) => (
         <span key={message.id} className="reaction-pop pointer-events-none fixed bottom-28 left-1/2 z-50 text-4xl">{message.message}</span>
@@ -680,7 +696,15 @@ function LiveHostPanel({ room, player, onSetting, onClear, onEnd }: { room: Live
 function LiveYouTubePlayer({ videoId, player, onEnded, onProgress }: { videoId: string; player: LivePlayerState | null; onEnded: () => void; onProgress: (seconds: number) => void }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YouTubePlayer | null>(null);
-  const lastSyncRef = useRef(0);
+  const onEndedRef = useRef(onEnded);
+  const onProgressRef = useRef(onProgress);
+  const lastPlaybackStateRef = useRef<LivePlayerState["playback_state"] | null>(null);
+  const lastSeekRef = useRef(player?.position_seconds ?? 0);
+
+  useEffect(() => {
+    onEndedRef.current = onEnded;
+    onProgressRef.current = onProgress;
+  }, [onEnded, onProgress]);
 
   useEffect(() => {
     let cancelled = false;
@@ -696,15 +720,8 @@ function LiveYouTubePlayer({ videoId, player, onEnded, onProgress }: { videoId: 
             if (player?.position_seconds) target.seekTo(player.position_seconds, true);
             if (player?.playback_state === "playing") target.playVideo();
           },
-          onStateChange: ({ data, target }) => {
-            if (data === api.PlayerState.ENDED) onEnded();
-            if (data === api.PlayerState.PLAYING || data === api.PlayerState.PAUSED) {
-              const now = Date.now();
-              if (now - lastSyncRef.current > 8500) {
-                lastSyncRef.current = now;
-                onProgress(Math.round(target.getCurrentTime()));
-              }
-            }
+          onStateChange: ({ data }) => {
+            if (data === api.PlayerState.ENDED) onEndedRef.current();
           }
         }
       });
@@ -714,14 +731,38 @@ function LiveYouTubePlayer({ videoId, player, onEnded, onProgress }: { videoId: 
       playerRef.current?.destroy();
       playerRef.current = null;
     };
-  }, [onEnded, onProgress, player?.playback_state, player?.position_seconds, player?.volume, videoId]);
+  }, [videoId]);
 
   useEffect(() => {
     if (!playerRef.current) return;
     playerRef.current.setVolume(player?.volume ?? 76);
-    if (player?.playback_state === "playing") playerRef.current.playVideo();
-    if (player?.playback_state === "paused") playerRef.current.pauseVideo();
-  }, [player?.playback_state, player?.volume]);
+  }, [player?.volume]);
+
+  useEffect(() => {
+    if (!playerRef.current || !player?.playback_state || lastPlaybackStateRef.current === player.playback_state) return;
+    lastPlaybackStateRef.current = player.playback_state;
+    if (player.playback_state === "playing") playerRef.current.playVideo();
+    if (player.playback_state === "paused") playerRef.current.pauseVideo();
+  }, [player?.playback_state]);
+
+  useEffect(() => {
+    if (!playerRef.current || !player) return;
+    const desiredPosition = player.position_seconds;
+    const actualPosition = Math.round(playerRef.current.getCurrentTime());
+    if (Math.abs(actualPosition - desiredPosition) > 3 && Math.abs(lastSeekRef.current - desiredPosition) > 1) {
+      lastSeekRef.current = desiredPosition;
+      playerRef.current.seekTo(desiredPosition, true);
+    }
+  }, [player?.current_queue_item_id, player?.position_seconds]);
+
+  useEffect(() => {
+    if (player?.playback_state !== "playing") return;
+    const timer = window.setInterval(() => {
+      if (!playerRef.current) return;
+      onProgressRef.current(Math.round(playerRef.current.getCurrentTime()));
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [player?.playback_state]);
 
   return <div ref={mountRef} className="aspect-video w-full overflow-hidden rounded-2xl bg-black" aria-label="Host YouTube player" />;
 }
@@ -789,6 +830,20 @@ function useLiveProgress(player: LivePlayerState | null, duration: number) {
     return () => window.clearInterval(timer);
   }, [duration, player]);
   return progress;
+}
+
+function useResponsiveLayout(): LiveLayout {
+  const [layout, setLayout] = useState<LiveLayout>("desktop");
+
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 1024px)");
+    const updateLayout = () => setLayout(query.matches ? "desktop" : "mobile");
+    updateLayout();
+    query.addEventListener("change", updateLayout);
+    return () => query.removeEventListener("change", updateLayout);
+  }, []);
+
+  return layout;
 }
 
 function loadYouTubeApi() {

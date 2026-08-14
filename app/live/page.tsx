@@ -5,7 +5,7 @@ import { QRCodeSVG } from "qrcode.react";
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import { ensureAnonymousUser, getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import { getLiveRoomUrl, LIVE_DISPLAY_NAME_KEY, makeLiveRoomCode } from "@/lib/jamroom/live";
+import { getLiveRoomUrl, isLocalInviteUrl, LIVE_DISPLAY_NAME_KEY, makeLiveRoomCode } from "@/lib/jamroom/live";
 
 type CreatedRoom = {
   id: string;
@@ -213,6 +213,11 @@ export default function LiveCreatePage() {
                 <div className="grid place-items-center rounded-2xl bg-white p-4">
                   <QRCodeSVG value={publicUrl} size={190} bgColor="#ffffff" fgColor="#050711" />
                 </div>
+                {isLocalInviteUrl(publicUrl) && (
+                  <p className="rounded-xl border border-amber-200/20 bg-amber-300/10 p-3 text-sm leading-6 text-amber-50">
+                    This invite uses localhost, which only works on this computer. For phone testing, use the Vercel URL or run Next.js on your LAN with `0.0.0.0`.
+                  </p>
+                )}
                 <button onClick={() => copy(publicUrl, "Invite link")} className={buttonSecondary}>
                   <Link2 size={17} /> Copy link
                 </button>

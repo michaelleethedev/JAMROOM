@@ -93,6 +93,24 @@ Live Party Mode is the first real multiplayer mode. It is designed for in-person
 - Guest devices do not initialize the YouTube player and cannot control playback
 - Sync Mode is intentionally labeled as coming soon
 
+## Local Device Testing
+
+Phones cannot join a room through a `localhost` invite because `localhost` means "this device." If the host computer creates an invite like `http://localhost:3001/room/ABC123`, a phone will try to open its own local server and fail.
+
+For reliable phone testing, use the deployed Vercel URL:
+
+```text
+https://jamroom-beige.vercel.app/live
+```
+
+For local LAN testing, bind Next.js to all network interfaces and set the public app URL to your computer's LAN IP for that session:
+
+```bash
+NEXT_PUBLIC_APP_URL=http://YOUR_LAN_IP:3000 pnpm dev --hostname 0.0.0.0
+```
+
+Then create the room from that LAN URL, not from `localhost`. Do not hardcode a LAN IP into the source code.
+
 ## Host View vs Guest View
 
 Host View exposes room controls such as playback management, queue removal and reordering, guest permissions, approval settings, participant removal, invite copying, and ending the room.
