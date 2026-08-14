@@ -326,6 +326,25 @@ export default function LiveRoomClient({ code }: { code: string }) {
     showToast("Song approved.");
   }
 
+  async function removeParticipant(target: LiveParticipant) {
+    if (!supabase || !isHost || target.role !== "guest") return;
+    await supabase.from("participants").delete().eq("id", target.id);
+    showToast(`${target.display_name} was removed.`);
+  }
+
+  async function updateRoomSettings(next: Partial<Pick<LiveRoom, "guests_can_add" | "require_approval">>) {
+    if (!supabase || !room || !isHost) return;
+    await supabase.from("rooms").update(next).eq("id", room.id);
+  }
+
+  async function clearUpcomingQueue() {
+    if (!supabase || !room || !isHost || !window.confirm("Clear all upcoming songs?")) return;
+    let query = supabase.from("queue_items").delete().eq("room_id", room.id);
+    if (player?.current_queue_item_id) query = query.neq("id", player.current_queue_item_id);
+    await query;
+    showToast("Upcoming queue cleared.");
+  }
+
   async function moveSong(item: LiveQueueItem, direction: -1 | 1) {
     if (!supabase || !isHost) return;
     const index = queue.findIndex((queueItem) => queueItem.id === item.id);
@@ -414,16 +433,16 @@ export default function LiveRoomClient({ code }: { code: string }) {
             <LiveQueue queue={queue} votes={userVoteBySong} participants={participants} isHost={isHost} room={room} currentItemId={player?.current_queue_item_id ?? null} onAdd={addSong} onVote={voteSong} onRemove={removeSong} onApprove={approveSong} onMove={moveSong} onPlayItem={playQueueItem} />
           </div>
           <div className="grid content-start gap-4">
-            <LivePeople participants={participants} presence={presence} isHost={isHost} onRemove={(target) => target.role === "guest" && supabase?.from("participants").delete().eq("id", target.id)} />
+            <LivePeople participants={participants} presence={presence} isHost={isHost} onRemove={removeParticipant} />
             <LiveChat messages={messages} participants={participants} onSend={sendMessage} onReaction={sendReaction} />
-            {isHost && room && <LiveHostPanel room={room} player={player} onSetting={(next) => supabase?.from("rooms").update(next).eq("id", room.id)} onClear={() => supabase?.from("queue_items").delete().eq("room_id", room.id).neq("id", player?.current_queue_item_id ?? "")} onEnd={endRoom} />}
+            {isHost && room && <LiveHostPanel room={room} player={player} onSetting={updateRoomSettings} onClear={clearUpcomingQueue} onEnd={endRoom} />}
           </div>
         </section>
 
         <section className="lg:hidden">
           {activeMobileTab === "player" && <LivePlayer currentSong={currentSong} player={player} isHost={isHost} onPlayPause={() => updatePlayer({ playback_state: player?.playback_state === "playing" ? "paused" : "playing" })} onSkip={skipSong} onSeek={(position) => updatePlayer({ position_seconds: position })} onVolume={(volume) => updatePlayer({ volume })} />}
           {activeMobileTab === "queue" && <LiveQueue queue={queue} votes={userVoteBySong} participants={participants} isHost={isHost} room={room} currentItemId={player?.current_queue_item_id ?? null} onAdd={addSong} onVote={voteSong} onRemove={removeSong} onApprove={approveSong} onMove={moveSong} onPlayItem={playQueueItem} />}
-          {activeMobileTab === "people" && <LivePeople participants={participants} presence={presence} isHost={isHost} onRemove={(target) => target.role === "guest" && supabase?.from("participants").delete().eq("id", target.id)} />}
+          {activeMobileTab === "people" && <LivePeople participants={participants} presence={presence} isHost={isHost} onRemove={removeParticipant} />}
           {activeMobileTab === "chat" && <LiveChat messages={messages} participants={participants} onSend={sendMessage} onReaction={sendReaction} />}
           {activeMobileTab !== "player" && <CompactLivePlayer song={currentSong} player={player} onClick={() => setActiveMobileTab("player")} />}
         </section>
