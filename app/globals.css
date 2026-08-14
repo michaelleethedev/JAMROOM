@@ -1038,6 +1038,20 @@ details > summary::-webkit-details-marker {
     -webkit-overflow-scrolling: touch;
   }
 
+  .live-room-main .glass,
+  .live-room-main .panel {
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .live-room-main .glass {
+    background: rgba(15, 20, 37, 0.9);
+  }
+
+  .live-room-main .panel {
+    background: rgba(20, 26, 48, 0.96);
+  }
+
   .mobile-screen,
   .mobile-player-screen,
   .mobile-queue-screen,
@@ -1112,7 +1126,7 @@ details > summary::-webkit-details-marker {
     border: 1px solid rgba(180, 191, 255, 0.1);
     border-radius: 1rem;
     background: rgba(6, 8, 19, 0.86);
-    backdrop-filter: blur(14px);
+    backdrop-filter: none;
   }
 
   .queue-row {
@@ -1157,7 +1171,7 @@ details > summary::-webkit-details-marker {
     border: 1px solid rgba(180, 191, 255, 0.12);
     border-radius: 1rem;
     background: rgba(6, 8, 19, 0.9);
-    backdrop-filter: blur(16px);
+    backdrop-filter: none;
   }
 
   .chat-composer input,
@@ -1187,6 +1201,7 @@ details > summary::-webkit-details-marker {
 
   .mobile-nav {
     min-height: calc(4.65rem + env(safe-area-inset-bottom));
+    backdrop-filter: none;
   }
 
   .modal-backdrop {

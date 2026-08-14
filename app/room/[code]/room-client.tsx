@@ -233,14 +233,11 @@ export default function LiveRoomClient({ code }: { code: string }) {
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "participants", filter: `room_id=eq.${roomId}` }, () => refreshParticipants(roomId))
       .on("postgres_changes", { event: "*", schema: "public", table: "queue_items", filter: `room_id=eq.${roomId}` }, () => refreshQueue(roomId))
-      .on("postgres_changes", { event: "*", schema: "public", table: "votes", filter: `room_id=eq.${roomId}` }, () => {
-        refreshVotes(roomId);
-        refreshQueue(roomId);
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "votes", filter: `room_id=eq.${roomId}` }, () => refreshVotes(roomId))
       .on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `room_id=eq.${roomId}` }, () => refreshMessages(roomId))
       .on("postgres_changes", { event: "*", schema: "public", table: "player_state", filter: `room_id=eq.${roomId}` }, (payload) => {
         const nextPlayer = payload.new as LivePlayerState;
-        if (nextPlayer?.room_id) setPlayer(nextPlayer);
+        if (nextPlayer?.room_id) setPlayer((previous) => (isSamePlayerState(previous, nextPlayer) ? previous : nextPlayer));
       })
       .subscribe();
 
@@ -950,10 +947,23 @@ function useLiveProgress(player: LivePlayerState | null, duration: number) {
       setProgress(calculateLivePosition(player, duration));
     };
     calculate();
+    if (player.playback_state !== "playing") return;
     const timer = window.setInterval(calculate, 1000);
     return () => window.clearInterval(timer);
   }, [duration, player]);
   return progress;
+}
+
+function isSamePlayerState(previous: LivePlayerState | null, next: LivePlayerState) {
+  return Boolean(
+    previous &&
+      previous.room_id === next.room_id &&
+      previous.current_queue_item_id === next.current_queue_item_id &&
+      previous.playback_state === next.playback_state &&
+      previous.position_seconds === next.position_seconds &&
+      previous.volume === next.volume &&
+      previous.updated_at === next.updated_at
+  );
 }
 
 function calculateLivePosition(player: LivePlayerState | null, duration: number) {
