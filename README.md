@@ -137,9 +137,10 @@ NEXT_PUBLIC_PORTFOLIO_URL
 NEXT_PUBLIC_APP_URL
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 ```
 
-Only the public Supabase anon key belongs in the client. Do not put Supabase service-role credentials in Vercel client environment variables.
+Only public Supabase browser keys belong in the client. Vercel's Supabase integration may provide `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`; JamRoom supports that as a fallback to `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Do not put Supabase service-role credentials in Vercel client environment variables.
 
 ## Mocked Functionality
 
@@ -193,6 +194,7 @@ NEXT_PUBLIC_PORTFOLIO_URL
 NEXT_PUBLIC_APP_URL
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 ```
 
 Then deploy with the Vercel dashboard or CLI:
