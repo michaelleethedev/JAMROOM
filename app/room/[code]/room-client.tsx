@@ -617,7 +617,9 @@ function LivePeople({ participants, presence, isHost, onRemove }: { participants
 function LiveChat({ messages, participants, onSend, onReaction }: { messages: LiveMessage[]; participants: LiveParticipant[]; onSend: (raw: string) => void; onReaction: (emoji: string) => void }) {
   const [text, setText] = useState("");
   const chatEnd = useRef<HTMLDivElement>(null);
-  useEffect(() => chatEnd.current?.scrollIntoView({ block: "end" }), [messages.length]);
+  useEffect(() => {
+    chatEnd.current?.scrollIntoView({ block: "end" });
+  }, [messages.length]);
 
   return (
     <section className="panel flex max-h-[42rem] min-h-[28rem] flex-col rounded-2xl p-4">
