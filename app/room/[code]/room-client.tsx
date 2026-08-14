@@ -127,6 +127,9 @@ export default function LiveRoomClient({ code }: { code: string }) {
 
   const loadRoom = useCallback(async () => {
     if (!supabase) return;
+    const user = await ensureAnonymousUser();
+    userIdRef.current = user.id;
+
     const { data, error: roomError } = await supabase.from("rooms").select("*").eq("code", roomCode).maybeSingle();
     if (roomError) {
       setError(roomError.message);
@@ -146,8 +149,6 @@ export default function LiveRoomClient({ code }: { code: string }) {
     const { data: visibleParticipants } = await supabase.from("participants").select("*").eq("room_id", data.id).order("joined_at", { ascending: true });
     if (visibleParticipants) setParticipants(visibleParticipants);
 
-    const user = await ensureAnonymousUser();
-    userIdRef.current = user.id;
     const { data: existingParticipant } = await supabase.from("participants").select("*").eq("room_id", data.id).eq("user_id", user.id).maybeSingle();
     if (existingParticipant) {
       setParticipant(existingParticipant);
