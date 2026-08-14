@@ -624,6 +624,10 @@ function Landing() {
     }
     setJoinError("");
     setIsJoining(true);
+    if (cleanCode !== "JAM247") {
+      window.location.href = `/room/${cleanCode}`;
+      return;
+    }
     const joined = joinRoom(cleanCode);
     if (!joined) setIsJoining(false);
   };
@@ -662,10 +666,14 @@ function Landing() {
             <button onClick={startDemo} className={`${buttonStyles.primary} min-h-16 rounded-2xl px-6 py-4 text-lg`}>
               <Play size={21} fill="currentColor" /> Start Demo
             </button>
-            <button onClick={() => setScreen("create")} className={`${buttonStyles.secondary} min-h-16 rounded-2xl px-5 py-4`}>
-              <Users size={18} /> Create a Room
+            <button onClick={() => window.location.href = "/live"} className={`${buttonStyles.secondary} min-h-16 rounded-2xl px-5 py-4`}>
+              <Wifi size={18} /> Create Live Room
             </button>
           </div>
+
+          <button onClick={() => setScreen("create")} className={`${buttonStyles.ghost} mt-3 px-1`}>
+            <Users size={16} /> Create offline demo room
+          </button>
 
           <form
             onSubmit={(event) => {
