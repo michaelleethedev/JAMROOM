@@ -438,6 +438,16 @@ textarea:focus-visible {
   isolation: isolate;
 }
 
+.landing-feature-art {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 1.45rem;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 1.4rem 3rem rgba(0, 0, 0, 0.42);
+}
+
 .listener-figure {
   position: relative;
   width: min(20vw, 18rem);

@@ -751,7 +751,7 @@ function LandingSocialArtwork() {
           </div>
         </div>
         <div className="mt-5">
-          <AlbumArt song={library[0]} large />
+          <img className="landing-feature-art" src="/images/jamroom-daydreams.png" alt="" />
         </div>
         <div className="mt-5 flex items-center justify-center gap-4">
           <div className="grid h-12 w-12 place-items-center rounded-full bg-white/8 text-white"><Shuffle size={18} /></div>
