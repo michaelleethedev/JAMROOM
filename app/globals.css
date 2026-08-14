@@ -99,6 +99,20 @@ textarea:focus-visible {
   color: var(--text);
 }
 
+.room-header {
+  background: rgba(13, 18, 34, 0.88);
+}
+
+.live-player {
+  background:
+    linear-gradient(135deg, rgba(154, 108, 255, 0.12), transparent 34%),
+    rgba(15, 20, 37, 0.82);
+}
+
+.now-playing-title {
+  letter-spacing: 0;
+}
+
 .room-title {
   font-size: 1.25rem;
   line-height: 1.2;
@@ -210,6 +224,47 @@ textarea:focus-visible {
 .btn-icon:hover {
   background: var(--surface-hover);
   color: white;
+}
+
+.vote-button,
+.reaction-action {
+  display: inline-flex;
+  min-height: 2.55rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.035);
+  color: #cbd5e1;
+  font-size: 0.82rem;
+  font-weight: 900;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.vote-button {
+  min-width: 3.35rem;
+  padding-inline: 0.65rem;
+}
+
+.vote-button:hover,
+.reaction-action:hover {
+  background: rgba(255, 255, 255, 0.075);
+  color: white;
+}
+
+.vote-button.is-voted {
+  border-color: rgba(94, 229, 161, 0.3);
+  background: rgba(94, 229, 161, 0.13);
+  color: #d1fae5;
+}
+
+.reaction-action {
+  width: 2.55rem;
 }
 
 .btn-destructive,

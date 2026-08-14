@@ -2,6 +2,8 @@
 
 import {
   ArrowLeft,
+  ArrowDown,
+  ArrowUp,
   Check,
   Copy,
   Crown,
@@ -17,6 +19,7 @@ import {
   Send,
   Settings2,
   SkipForward,
+  Sparkles,
   Trash2,
   UserMinus,
   Users,
@@ -501,11 +504,11 @@ export default function LiveRoomClient({ code }: { code: string }) {
   return (
     <main className="live-room-main min-h-screen overflow-x-hidden px-3 pb-[7rem] pt-3 sm:px-5 lg:pb-5">
       <div className="mx-auto grid max-w-[96rem] gap-4">
-        <header className="glass flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3">
+        <header className="room-header glass flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3">
           <div className="min-w-0">
-            <p className="badge badge-live mb-2"><Wifi size={14} /> Live Party Mode</p>
+            <p className="badge badge-live mb-2"><Wifi size={14} /> Live room</p>
             <h1 className="room-title truncate">{room?.name}</h1>
-            <p className="metadata mt-1 text-sm">{isHost ? "Host device plays audio" : "Guest view: no audio playback on this device"}</p>
+            <p className="metadata mt-1 text-sm">{isHost ? "Speaker output controlled here" : "Connected as a listener"}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button onClick={copyInvite} className={buttonSecondary}><Copy size={16} /> Invite <span className="font-mono text-xs">{room?.code}</span></button>
@@ -589,16 +592,20 @@ function LivePlayer({
   const isYouTube = currentSong?.provider === "YouTube" && currentSong.provider_id;
 
   return (
-    <section className="player-shell glass rounded-[1.6rem] p-4 sm:p-5">
+    <section className="player-shell live-player glass rounded-[1.6rem] p-4 sm:p-5">
       <div className="grid gap-5 xl:grid-cols-[minmax(18rem,0.74fr)_1fr] xl:items-center">
         <div className="desktop-art-wrap">
           {isHost && isYouTube ? <LiveYouTubePlayer videoId={currentSong.provider_id!} player={player} onEnded={onSkip} onHostProgress={onHostProgress} onPersistProgress={onPersistProgress} /> : <LiveArtwork item={currentSong} large />}
         </div>
         <div className="min-w-0">
-          <p className="eyebrow text-violet-100">{isHost ? "Host playback" : "Now playing"}</p>
-          <h2 className="mt-3 truncate text-4xl font-black text-white sm:text-5xl">{currentSong?.title ?? "Queue is ready"}</h2>
-          <p className="mt-2 truncate text-lg text-slate-300">{currentSong?.artist ?? "Add the first track to start Party Mode"}</p>
-          <p className="metadata mt-2 text-sm">{isHost ? "This device controls the speaker." : "Guests see progress without playing audio."}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="eyebrow text-violet-100">{isHost ? "Host playback" : "Now playing"}</p>
+            {currentSong?.provider && <span className={`badge ${currentSong.provider === "YouTube" ? "badge-youtube" : "badge-neutral"}`}>{currentSong.provider}</span>}
+            <span className="badge badge-neutral">{player?.playback_state ?? "paused"}</span>
+          </div>
+          <h2 className="now-playing-title mt-3 truncate text-3xl font-black text-white sm:text-4xl">{currentSong?.title ?? "Queue is ready"}</h2>
+          <p className="mt-2 truncate text-base font-semibold text-slate-300 sm:text-lg">{currentSong?.artist ?? "Add the first track to start the room"}</p>
+          <p className="metadata mt-2 text-sm">{isHost ? "This device is the only audio source." : "Live progress mirrors the host device."}</p>
           <div className="mt-6">
             <input type="range" min={0} max={currentSong?.duration ?? 100} value={visualProgress} disabled={!isHost || !currentSong} onChange={(event) => onSeek(Number(event.target.value))} className="w-full accent-violet-400" aria-label="Playback progress" />
             <div className="mt-2 flex justify-between text-xs font-bold text-slate-400">
@@ -657,7 +664,7 @@ function LiveQueue({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="section-title">Shared Queue</h2>
-          <p className="metadata mt-1 text-sm">{queue.length} tracks · realtime votes</p>
+          <p className="metadata mt-1 text-sm">{queue.length} tracks in sync</p>
         </div>
         <form
           onSubmit={(event) => {
@@ -691,11 +698,11 @@ function LiveQueue({
                 <p className="metadata mt-1 truncate text-sm">{item.artist} · added by {addedBy?.display_name ?? "Guest"} · {formatDuration(item.duration)}</p>
               </div>
               <div className="flex items-center gap-1">
-                <button onClick={() => onVote(item, 1)} className={`${buttonIcon} h-10 min-h-10 w-10 ${userVote === 1 ? "bg-green-400/15 text-green-100" : ""}`} aria-label={`Upvote ${item.title}`}>+{item.vote_score}</button>
+                <button onClick={() => onVote(item, 1)} className={`vote-button ${userVote === 1 ? "is-voted" : ""}`} aria-label={`Upvote ${item.title}`}><ArrowUp size={15} /> <span>{item.vote_score}</span></button>
                 {isHost && item.approval_status === "approved" && item.id !== currentItemId && <button onClick={() => onPlayItem(item)} className={buttonIcon} aria-label={`Play ${item.title} now`}><Play size={17} /></button>}
                 {isHost && item.approval_status === "pending" && <button onClick={() => onApprove(item)} className={buttonIcon} aria-label={`Approve ${item.title}`}><Check size={17} /></button>}
-                {isHost && <button onClick={() => onMove(item, -1)} className={buttonIcon} aria-label={`Move ${item.title} up`}>↑</button>}
-                {isHost && <button onClick={() => onMove(item, 1)} className={buttonIcon} aria-label={`Move ${item.title} down`}>↓</button>}
+                {isHost && <button onClick={() => onMove(item, -1)} className={buttonIcon} aria-label={`Move ${item.title} up`}><ArrowUp size={16} /></button>}
+                {isHost && <button onClick={() => onMove(item, 1)} className={buttonIcon} aria-label={`Move ${item.title} down`}><ArrowDown size={16} /></button>}
                 {isHost && <button onClick={() => onRemove(item)} className={`${buttonIcon} text-rose-100`} aria-label={`Remove ${item.title}`}><Trash2 size={17} /></button>}
               </div>
             </div>
@@ -733,6 +740,11 @@ function LivePeople({ participants, presence, isHost, onRemove }: { participants
 function LiveChat({ messages, participants, onSend, onReaction }: { messages: LiveMessage[]; participants: LiveParticipant[]; onSend: (raw: string) => void; onReaction: (emoji: string) => void }) {
   const [text, setText] = useState("");
   const chatEnd = useRef<HTMLDivElement>(null);
+  const reactions = [
+    { emoji: "🔥", label: "Fire", icon: Radio },
+    { emoji: "💜", label: "Like", icon: Crown },
+    { emoji: "✨", label: "Vibe", icon: Sparkles }
+  ];
   useEffect(() => {
     chatEnd.current?.scrollIntoView({ block: "end" });
   }, [messages.length]);
@@ -742,7 +754,7 @@ function LiveChat({ messages, participants, onSend, onReaction }: { messages: Li
       <div className="flex items-center justify-between">
         <h2 className="section-title">Chat</h2>
         <div className="flex gap-1">
-          {["🔥", "💜", "✨"].map((emoji) => <button key={emoji} onClick={() => onReaction(emoji)} className={buttonIcon} aria-label={`Send ${emoji} reaction`}>{emoji}</button>)}
+          {reactions.map(({ emoji, label, icon: Icon }) => <button key={emoji} onClick={() => onReaction(emoji)} className="reaction-action" aria-label={`Send ${label} reaction`} title={label}><Icon size={16} /></button>)}
         </div>
       </div>
       <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
