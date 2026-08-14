@@ -137,7 +137,7 @@ export function createTrackFromInput(raw: string): ParsedMusicLink {
     providerId: null,
     externalUrl: null,
     title: input || fallback.title,
-    artist: input ? "JamRoom request" : fallback.artist,
+    artist: input ? "OpenAux request" : fallback.artist,
     duration: fallback.duration,
     artwork: null
   };

@@ -41,6 +41,7 @@ import {
 import { FormEvent, KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { brand } from "@/lib/brand";
 
 type ViewMode = "host" | "guest";
 type Screen = "landing" | "create" | "room";
@@ -199,9 +200,9 @@ type PersistedJamState = Pick<
 >;
 
 const PROJECT_LINKS = {
-  github: process.env.NEXT_PUBLIC_GITHUB_URL || "#",
-  portfolio: process.env.NEXT_PUBLIC_PORTFOLIO_URL || "#",
-  app: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+  github: process.env.NEXT_PUBLIC_GITHUB_URL || brand.githubUrl,
+  portfolio: process.env.NEXT_PUBLIC_PORTFOLIO_URL || brand.portfolioUrl,
+  app: process.env.NEXT_PUBLIC_APP_URL || brand.appUrl
 };
 
 const PERSISTED_STATE_VERSION = 4;
@@ -225,25 +226,25 @@ function cx(...classes: Array<string | false | null | undefined>) {
 }
 
 const library: Song[] = [
-  { id: "daydreams", title: "Daydreams", artist: "Miami Dusk", album: "Neon Drive", duration: 215, cover: ["#7c3aed", "#ec4899", "#0ea5e9"] },
-  { id: "midnight", title: "Midnight Glow", artist: "Luna Waves", album: "Purple Hour", duration: 182, cover: ["#3b0764", "#7c3aed", "#fb7185"] },
+  { id: "daydreams", title: "Daydreams", artist: "Miami Dusk", album: "Neon Drive", duration: 215, cover: ["#1d4ed8", "#2563eb", "#38bdf8"] },
+  { id: "midnight", title: "Midnight Glow", artist: "Luna Waves", album: "Blue Hour", duration: 182, cover: ["#0b1426", "#1d4ed8", "#38bdf8"] },
   { id: "ocean", title: "Ocean Drive", artist: "Coastal Club", album: "After Sunset", duration: 165, cover: ["#0ea5e9", "#2563eb", "#020617"] },
   { id: "sleepless", title: "Sleepless Nights", artist: "Kyoto Coast", album: "City Lights", duration: 192, cover: ["#f97316", "#be123c", "#312e81"] },
-  { id: "better", title: "Better Together", artist: "The Brights", album: "Room Tone", duration: 208, cover: ["#10b981", "#7c3aed", "#172554"] },
-  { id: "afterimage", title: "Afterimage", artist: "Sable Room", album: "Violet Hour", duration: 231, cover: ["#d946ef", "#9333ea", "#0f172a"] },
+  { id: "better", title: "Better Together", artist: "The Brights", album: "Room Tone", duration: 208, cover: ["#10b981", "#2563eb", "#172554"] },
+  { id: "afterimage", title: "Afterimage", artist: "Sable Room", album: "Blue Hour", duration: 231, cover: ["#38bdf8", "#2563eb", "#0f172a"] },
   { id: "solstice", title: "Solstice Drive", artist: "North Runner", album: "Open Roads", duration: 268, cover: ["#f97316", "#be123c", "#312e81"] },
   { id: "glimmer", title: "Glimmer Mode", artist: "Pixel Choir", album: "Shared Screen", duration: 203, cover: ["#38bdf8", "#8b5cf6", "#1e1b4b"] },
-  { id: "golden", title: "Golden Hourline", artist: "Sable Room", album: "Violet Hour", duration: 231, cover: ["#d946ef", "#9333ea", "#0f172a"] },
+  { id: "golden", title: "Golden Hourline", artist: "Sable Room", album: "Blue Hour", duration: 231, cover: ["#38bdf8", "#2563eb", "#0f172a"] },
   { id: "signal", title: "Signal Bloom", artist: "The Relay", album: "Everyone Online", duration: 192, cover: ["#84cc16", "#14b8a6", "#172554"] },
   { id: "mono", title: "Monorail Hearts", artist: "Luca Drift", album: "Transit Dreams", duration: 209, cover: ["#fb7185", "#facc15", "#0f172a"] },
   { id: "static", title: "Static Jubilee", artist: "Echo Vale", album: "Room Tone", duration: 254, cover: ["#6366f1", "#0ea5e9", "#020617"] }
 ];
 
 const mockUsers: User[] = [
-  { id: "you", name: "Alex", role: "host", avatar: "AL", color: "#9a6cff", online: true, listening: true },
+  { id: "you", name: "Alex", role: "host", avatar: "AL", color: "#38bdf8", online: true, listening: true },
   { id: "sarah", name: "Sarah", role: "guest", avatar: "SA", color: "#49d9ff", online: true, listening: true },
   { id: "mike", name: "Mike", role: "guest", avatar: "MI", color: "#5ee5a1", online: true, listening: true },
-  { id: "jules", name: "Jules", role: "guest", avatar: "JU", color: "#e65cff", online: true, listening: true },
+  { id: "jules", name: "Jules", role: "guest", avatar: "JU", color: "#60a5fa", online: true, listening: true },
   { id: "kenji", name: "Kenji", role: "guest", avatar: "KE", color: "#f59e0b", online: true, listening: true },
   { id: "maya", name: "Maya", role: "guest", avatar: "MA", color: "#fb7185", online: true, listening: false },
   { id: "ari", name: "Ari", role: "guest", avatar: "AR", color: "#22c55e", online: true, listening: true },
@@ -428,7 +429,7 @@ const useJamStore = create<JamState>()(
           ...freshJamState(),
           toasts: []
         });
-        get().addToast("JamRoom reset to the current build.");
+        get().addToast(`${brand.productName} reset to the current build.`);
       },
       addSong: (song, addedBy = get().viewMode === "host" ? "you" : "sarah") => {
         const room = get().room;
@@ -642,38 +643,38 @@ function Landing() {
             About This Demo
           </button>
           <button onClick={startDemo} className={`${buttonStyles.primary} hidden sm:inline-flex`}>
-            Start Demo
+            Try Demo
           </button>
         </div>
       </header>
 
       <div className="relative mt-4 grid flex-1 overflow-hidden rounded-[1.8rem] border border-white/10 bg-slate-950/45 px-5 py-7 shadow-2xl shadow-black/35 sm:px-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(24rem,1.08fr)] lg:items-center lg:gap-10 lg:py-12">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(154,108,255,0.24),transparent_24rem),radial-gradient(circle_at_86%_24%,rgba(73,217,255,0.12),transparent_22rem)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(37,99,235,0.24),transparent_24rem),radial-gradient(circle_at_86%_24%,rgba(56,189,248,0.14),transparent_22rem)]" />
         <div className="relative z-10 max-w-2xl py-3 text-left lg:py-8">
           <p className="badge badge-primary mb-4">
             <Sparkles size={15} /> Best way to explore
           </p>
           <h1 className="text-5xl font-black leading-[0.95] tracking-normal text-white sm:text-6xl lg:text-7xl">
-            Jam<span className="text-violet-300">Room</span>
+            {brand.productName}
           </h1>
           <p className="mt-5 max-w-xl text-balance text-3xl font-black leading-tight text-white sm:text-4xl">
-            One room. Everyone&apos;s music. Listen together.
+            {brand.headline}
           </p>
           <p className="mt-5 max-w-lg text-base leading-7 text-slate-300 sm:text-lg">
-            Start a shared music room where friends vote on the queue, chat, react, and keep the vibe moving in sync.
+            {brand.description}
           </p>
 
           <div className="mt-8 grid gap-3 sm:max-w-xl sm:grid-cols-[1.15fr_0.85fr]">
             <button onClick={startDemo} className={`${buttonStyles.primary} min-h-16 rounded-2xl px-6 py-4 text-lg`}>
-              <Play size={21} fill="currentColor" /> Start Demo
+              <Play size={21} fill="currentColor" /> Try Demo
             </button>
             <button onClick={() => window.location.href = "/live"} className={`${buttonStyles.secondary} min-h-16 rounded-2xl px-5 py-4`}>
-              <Wifi size={18} /> Create Live Room
+              <Wifi size={18} /> Start a Party
             </button>
           </div>
 
           <button onClick={() => setScreen("create")} className={`${buttonStyles.ghost} mt-3 px-1`}>
-            <Users size={16} /> Create offline demo room
+            <Users size={16} /> Start offline demo party
           </button>
 
           <form
@@ -706,18 +707,18 @@ function Landing() {
               {joinError && <p id="room-code-error" className="px-3 pb-1 text-xs font-bold text-rose-100">{joinError}</p>}
             </div>
             <button disabled={isJoining} className={`${buttonStyles.neutral} min-h-12 px-5 py-3`}>
-              <Link2 size={16} /> {isJoining ? "Joining..." : "Join a Room"}
+              <Link2 size={16} /> {isJoining ? "Joining..." : "Join a Party"}
             </button>
           </form>
 
           <div className="mt-7 grid gap-3 text-sm text-slate-300 sm:grid-cols-3">
             {[
-              [Radio, "Listen together"],
-              [ListMusic, "Build the queue together"],
-              [MessageCircle, "Chat and react live"]
+              [Radio, "One speaker"],
+              [ListMusic, "Shared queue"],
+              [MessageCircle, "Vote what plays"]
             ].map(([Icon, title]) => (
               <div key={String(title)} className="flex items-center gap-3 rounded-2xl bg-white/[0.035] p-3">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[0.06] text-violet-100"><Icon size={18} /></span>
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[0.06] text-cyan-100"><Icon size={18} /></span>
                 <b className="text-white">{String(title)}</b>
               </div>
             ))}
@@ -738,7 +739,7 @@ function LandingSocialArtwork() {
       <div className="absolute inset-x-0 top-0 mx-auto w-full max-w-[24rem] rounded-[2rem] border border-white/10 bg-slate-950/72 p-4 shadow-2xl shadow-black/45 backdrop-blur sm:max-w-[27rem] lg:right-4 lg:left-auto">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-violet-200">Weekend Vibes</p>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100">Crowd Pick</p>
             <h2 className="mt-1 text-2xl font-black text-white">Daydreams</h2>
             <p className="text-sm text-slate-400">Miami Dusk</p>
           </div>
@@ -755,7 +756,7 @@ function LandingSocialArtwork() {
         </div>
         <div className="mt-5 flex items-center justify-center gap-4">
           <div className="grid h-12 w-12 place-items-center rounded-full bg-white/8 text-white"><Shuffle size={18} /></div>
-          <div className="grid h-16 w-16 place-items-center rounded-full bg-[linear-gradient(135deg,#7c3aed,#d946ef)] text-white shadow-xl shadow-violet-950/50"><Pause size={24} fill="currentColor" /></div>
+          <div className="grid h-16 w-16 place-items-center rounded-full bg-[linear-gradient(135deg,#1D4ED8,#38BDF8)] text-white shadow-xl shadow-blue-950/50"><Pause size={24} fill="currentColor" /></div>
           <div className="grid h-12 w-12 place-items-center rounded-full bg-white/8 text-white"><SkipForward size={18} /></div>
         </div>
         <div className="mt-5 grid gap-2">
@@ -768,7 +769,7 @@ function LandingSocialArtwork() {
         <p className="text-xs font-black uppercase tracking-[0.14em] text-cyan-100">Live chat</p>
         <div className="mt-3 grid gap-2 text-sm text-slate-200">
           <p className="rounded-xl bg-white/[0.06] px-3 py-2">this song hits 🔥</p>
-          <p className="rounded-xl bg-violet-500/25 px-3 py-2">vote Midnight Glow next</p>
+          <p className="rounded-xl bg-blue-500/20 px-3 py-2">vote Midnight Glow next</p>
         </div>
       </div>
     </div>
@@ -837,8 +838,8 @@ function CreateRoom() {
         <div>
           <div className="mb-8">
             <p className="badge badge-primary mb-3">Host setup</p>
-            <h1 className="text-4xl font-black">Create a room in seconds</h1>
-            <p className="body-copy mt-3 max-w-xl">Name the room, pick a vibe, and decide how open the shared queue should be. You can adjust host controls later.</p>
+            <h1 className="text-4xl font-black">Start a party in seconds</h1>
+            <p className="body-copy mt-3 max-w-xl">Name the session, pick a vibe, and decide how much influence guests have over the shared queue.</p>
           </div>
           <form
             onSubmit={(event) => {
@@ -848,8 +849,8 @@ function CreateRoom() {
             className="glass grid gap-5 rounded-3xl p-5 sm:p-7"
           >
             <div className="grid gap-2">
-              <label htmlFor="create-room-name" className="font-bold text-white">Room name</label>
-              <p className="text-sm metadata">This is what guests see when they enter.</p>
+              <label htmlFor="create-room-name" className="font-bold text-white">Party name</label>
+              <p className="text-sm metadata">This is what guests see when they scan or enter the code.</p>
               <input
                 id="create-room-name"
                 value={name}
@@ -872,7 +873,7 @@ function CreateRoom() {
               <p className="text-sm metadata">Choose a starting vibe for the room.</p>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {moodOptions.map((option) => (
-                  <button key={option.name} type="button" onClick={() => setMood(option.name)} className={`rounded-xl border px-3 py-3 text-left transition ${mood === option.name ? "border-violet-200/35 bg-violet-500/18 text-white" : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10"}`} aria-pressed={mood === option.name}>
+                  <button key={option.name} type="button" onClick={() => setMood(option.name)} className={`rounded-xl border px-3 py-3 text-left transition ${mood === option.name ? "border-cyan-200/35 bg-blue-500/18 text-white" : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10"}`} aria-pressed={mood === option.name}>
                     <span className="block text-sm font-black">{option.name}</span>
                     <span className="mt-0.5 block text-xs text-slate-400">{option.description}</span>
                   </button>
@@ -881,12 +882,12 @@ function CreateRoom() {
             </fieldset>
 
             <div className="grid gap-2">
-              <CreateSettingToggle label="Guests can add songs" description="Let everyone suggest tracks directly into the queue." checked={guestsCanAdd} onChange={setGuestsCanAdd} />
+              <CreateSettingToggle label="Guest submissions" description="Let everyone suggest tracks directly into the queue." checked={guestsCanAdd} onChange={setGuestsCanAdd} />
               <CreateSettingToggle label="Require song approval" description="New guest songs wait for the host before playing." checked={requireApproval} onChange={setRequireApproval} />
             </div>
 
             <button disabled={isCreating} className={`${buttonStyles.primary} min-h-14`}>
-              <Crown size={18} /> {isCreating ? "Creating..." : "Create Room"}
+              <Crown size={18} /> {isCreating ? "Starting..." : "Start a Party"}
             </button>
           </form>
         </div>
@@ -897,7 +898,7 @@ function CreateRoom() {
               <span>Host</span>
             </div>
             <div className="mt-8">
-              <p className="text-xs uppercase tracking-[0.18em] text-violet-200">Room preview</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-cyan-100">Party preview</p>
               <h2 className="mt-2 truncate text-2xl font-black">{name || "Untitled Room"}</h2>
               <p className="mt-1 text-sm text-slate-400">{mood}</p>
               <AlbumArt song={library[3]} large />
@@ -1111,9 +1112,9 @@ function RoomMetrics() {
   const pending = queue.filter((song) => !song.approved).length;
 
   const metrics = [
-    { icon: Radio, label: "Now playing", value: current?.title ?? "Queue empty", tone: "text-violet-100" },
+    { icon: Radio, label: "Now playing", value: current?.title ?? "Queue empty", tone: "text-cyan-100" },
     { icon: Users, label: "Listeners", value: `${users.filter((user) => user.listening).length}/${users.length} active`, tone: "text-cyan-100" },
-    { icon: ListMusic, label: "Queue depth", value: `${queue.length} tracks${pending ? ` · ${pending} pending` : ""}`, tone: "text-fuchsia-100" },
+    { icon: ListMusic, label: "Queue depth", value: `${queue.length} tracks${pending ? ` · ${pending} pending` : ""}`, tone: "text-blue-100" },
     { icon: MessageCircle, label: "Room activity", value: `${chat.length} messages`, tone: "text-green-100" }
   ];
 
@@ -1164,7 +1165,7 @@ function MobileRoomHeader({ onAbout }: { onAbout: () => void }) {
               </button>
             ))}
           </div>
-          <button onClick={startDemo} className={`${buttonStyles.icon} min-h-10 w-11 border-violet-300/25 text-white`} aria-label="Start demo mode" title="Start demo mode">
+          <button onClick={startDemo} className={`${buttonStyles.icon} min-h-10 w-11 border-cyan-300/25 text-white`} aria-label="Start demo mode" title="Start demo mode">
             <Wand2 size={15} />
           </button>
           <button onClick={onAbout} className={`${buttonStyles.icon} min-h-10 w-11 text-white`} aria-label="Open About This Demo" title="About this demo">
@@ -1329,7 +1330,7 @@ function Player() {
             <IconButton active={shuffle} label="Shuffle queue" onClick={toggleShuffle}>
               <Shuffle size={20} />
             </IconButton>
-            <button onClick={toggleCurrentPlayback} className={`play-toggle grid h-16 w-16 place-items-center rounded-full bg-[linear-gradient(135deg,#7c3aed,#d946ef)] text-white shadow-xl shadow-violet-950/40 transition hover:scale-105 ${isPlaying ? "is-playing" : ""}`} aria-label={isPlaying ? `Pause ${current?.title ?? "playback"}` : `Play ${current?.title ?? "playback"}`} aria-pressed={isPlaying} title={isPlaying ? "Pause" : "Play"}>
+            <button onClick={toggleCurrentPlayback} className={`play-toggle grid h-16 w-16 place-items-center rounded-full bg-[linear-gradient(135deg,#1d4ed8,#38bdf8)] text-white shadow-xl shadow-blue-950/40 transition hover:scale-105 ${isPlaying ? "is-playing" : ""}`} aria-label={isPlaying ? `Pause ${current?.title ?? "playback"}` : `Play ${current?.title ?? "playback"}`} aria-pressed={isPlaying} title={isPlaying ? "Pause" : "Play"}>
               {isPlaying ? <Pause size={27} fill="currentColor" /> : <Play size={27} fill="currentColor" />}
             </button>
             <IconButton label="Skip song" onClick={skipSong}>
@@ -1709,7 +1710,7 @@ function providerQueueTone(song: QueueSong) {
   if (song.sourceProvider === "Apple Music") {
     return {
       badge: "badge-apple",
-      text: "text-pink-100"
+      text: "text-sky-100"
     };
   }
   if (song.sourceProvider === "SoundCloud") {
@@ -1771,7 +1772,7 @@ function PeoplePanel({ embedded = false }: { embedded?: boolean }) {
       <div className="grid gap-2">
         {users.length === 0 && <EmptyState icon={<Users />} title="No one is in the room yet" text="Invite friends or start Demo Mode to see the room feel alive." />}
         {users.map((user) => (
-          <div key={user.id} className={`group flex min-h-[4.35rem] items-center gap-3 rounded-xl p-2.5 transition hover:bg-white/[0.04] max-lg:bg-white/[0.025] ${user.role === "host" ? "bg-violet-400/[0.08] ring-1 ring-violet-200/12" : "bg-transparent"}`}>
+          <div key={user.id} className={`group flex min-h-[4.35rem] items-center gap-3 rounded-xl p-2.5 transition hover:bg-white/[0.04] max-lg:bg-white/[0.025] ${user.role === "host" ? "bg-blue-400/[0.08] ring-1 ring-cyan-200/12" : "bg-transparent"}`}>
             <div className="relative">
               <Avatar user={user} />
               <span className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-slate-950 ${user.online ? "bg-green-300" : "bg-slate-600"}`} aria-hidden="true" />
@@ -1858,7 +1859,7 @@ function ChatPanel({ embedded = false }: { embedded?: boolean }) {
           return (
             <div key={messageItem.id} className={`chat-message-row motion-enter flex gap-2.5 ${isYou ? "justify-end" : ""}`}>
               {!isYou && user && <Avatar user={user} small />}
-              <div className={`chat-bubble min-w-0 max-w-[82%] rounded-2xl border px-3 py-2 max-lg:max-w-[84%] ${isYou ? "border-violet-200/20 bg-violet-500/35 text-white" : "border-white/8 bg-white/[0.06]"}`}>
+              <div className={`chat-bubble min-w-0 max-w-[82%] rounded-2xl border px-3 py-2 max-lg:max-w-[84%] ${isYou ? "border-cyan-200/20 bg-blue-500/35 text-white" : "border-white/8 bg-white/[0.06]"}`}>
                 <div className="mb-1 flex min-w-0 items-baseline gap-2">
                   <p className="truncate text-sm font-black">{user?.name ?? "Guest"}</p>
                   <span className="shrink-0 text-[0.68rem] font-medium text-slate-500">{messageItem.time}</span>
@@ -2059,7 +2060,7 @@ function CompactPlayer() {
         </span>
       </button>
       <span className="badge badge-live hidden sm:inline-flex">Live</span>
-      <button type="button" onClick={togglePlay} className={`play-toggle grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,#7c3aed,#d946ef)] text-white ${isPlaying ? "is-playing" : ""}`} aria-label={isPlaying ? "Pause compact player" : "Play compact player"} aria-pressed={isPlaying}>
+      <button type="button" onClick={togglePlay} className={`play-toggle grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,#1d4ed8,#38bdf8)] text-white ${isPlaying ? "is-playing" : ""}`} aria-label={isPlaying ? "Pause compact player" : "Play compact player"} aria-pressed={isPlaying}>
         {isPlaying ? <Pause size={18} /> : <Play size={18} />}
       </button>
     </div>
@@ -2145,8 +2146,8 @@ function DemoHint({ onClose }: { onClose: () => void }) {
           <Sparkles size={17} />
         </span>
         <div className="min-w-0">
-          <p className="font-black text-white">You’re viewing a live JamRoom demo.</p>
-          <p className="mt-1 leading-6 text-cyan-50/85">Try switching between Host and Guest, adding a song, voting, or sending a message.</p>
+          <p className="font-black text-white">You’re viewing a live {brand.productName} demo.</p>
+          <p className="mt-1 leading-6 text-cyan-50/85">Try switching between Host and Guest, adding a song, voting for the crowd pick, or sending a message.</p>
           <p className="mt-1 text-xs font-bold text-cyan-100/70">Room activity is simulated. YouTube links use the real embedded player.</p>
         </div>
       </div>
@@ -2161,10 +2162,10 @@ function AboutDemoDialog({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="About This Demo" onClose={onClose}>
       <div className="grid gap-4 text-sm text-slate-300">
-        <InfoBlock title="Project">JamRoom</InfoBlock>
-        <InfoBlock title="Description">A real-time-style social music room portfolio demonstration.</InfoBlock>
+        <InfoBlock title="Project">{brand.productName}</InfoBlock>
+        <InfoBlock title="Description">{brand.primaryMessage}</InfoBlock>
         <InfoBlock title="Technologies">Next.js App Router, TypeScript, Tailwind CSS, Zustand, localStorage, Lucide icons.</InfoBlock>
-        <InfoBlock title="Major Features">Create/join room flows, Demo Mode, Host/Guest views, shared queue voting, simulated playback, participants, chat, reactions, and host controls.</InfoBlock>
+        <InfoBlock title="Major Features">Start/join party flows, Demo Mode, Host/Guest views, shared queue voting, simulated playback, participants, chat, reactions, and host controls.</InfoBlock>
         <InfoBlock title="Simulated">Music streaming, universal music-link matching, realtime presence, chat delivery, queue synchronization, and invite links.</InfoBlock>
         <InfoBlock title="Production Needs">Provider OAuth, licensed playback APIs, realtime backend, durable database, moderation, auth, analytics, deployment secrets, and provider compliance review.</InfoBlock>
       </div>
@@ -2239,13 +2240,13 @@ function InfoBlock({ title, children }: { title: string; children: React.ReactNo
 function Logo({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-300 font-black text-white shadow-lg shadow-violet-950/50">
-        JR
+      <div className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-blue-700 via-blue-500 to-cyan-300 font-black text-white shadow-lg shadow-blue-950/50">
+        OA
       </div>
       {!compact && (
         <div>
-          <p className="text-lg font-black leading-none">JamRoom</p>
-          <p className="text-xs text-slate-400">Social listening</p>
+          <p className="text-lg font-black leading-none">{brand.productName}</p>
+          <p className="text-xs text-slate-400">Party jukebox</p>
         </div>
       )}
     </div>
@@ -2283,7 +2284,7 @@ function NowPlayingPreview() {
       <h3 className="mt-4 truncate text-2xl font-black">{library[0].title}</h3>
       <p className="truncate text-slate-400">{library[0].artist}</p>
       <div className="mt-5 h-2 rounded-full bg-white/10">
-        <div className="h-full w-2/3 rounded-full bg-gradient-to-r from-violet-400 to-cyan-300" />
+        <div className="h-full w-2/3 rounded-full bg-gradient-to-r from-blue-500 to-cyan-300" />
       </div>
     </div>
   );
@@ -2300,23 +2301,23 @@ function LandingDeviceShowcase() {
             <span>5G</span>
           </div>
           <div className="mt-10 grid place-items-center text-center">
-            <div className="artwork mb-7 grid h-32 w-32 place-items-center rounded-[2rem]" style={{ "--from": "#7c3aed", "--via": "#d946ef", "--to": "#22d3ee" } as React.CSSProperties}>
+            <div className="artwork mb-7 grid h-32 w-32 place-items-center rounded-[2rem]" style={{ "--from": "#1d4ed8", "--via": "#2563eb", "--to": "#22d3ee" } as React.CSSProperties}>
               <ListMusic size={54} className="text-white drop-shadow-xl" />
             </div>
             <h3 className="text-3xl font-black">
-              Jam<span className="text-violet-300">Room</span>
+              {brand.productName}
             </h3>
-            <p className="mt-3 max-w-[12rem] text-sm leading-6 text-slate-300">One room. Everyone&apos;s music. Listen together.</p>
+            <p className="mt-3 max-w-[12rem] text-sm leading-6 text-slate-300">{brand.tagline}</p>
           </div>
           <div className="mt-10 grid gap-3">
-            <div className="rounded-xl bg-[linear-gradient(135deg,#7c3aed,#a855f7)] px-4 py-3 text-center text-sm font-black">Create a Room</div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-center text-sm font-bold">Join a Room</div>
+            <div className="rounded-xl bg-[linear-gradient(135deg,#1d4ed8,#38bdf8)] px-4 py-3 text-center text-sm font-black">Start a Party</div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-center text-sm font-bold">Join a Party</div>
           </div>
         </div>
         <div className="glass rounded-[1.75rem] p-4">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-violet-200">Weekend Vibes</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-cyan-100">Weekend Vibes</p>
               <h3 className="text-2xl font-black">Friday Night Jam</h3>
             </div>
             <div className="rounded-full bg-white/10 px-3 py-1 text-sm font-black">8</div>
@@ -2343,19 +2344,19 @@ function LandingDeviceShowcase() {
 function FeatureCard() {
   return (
     <section className="panel overflow-hidden rounded-2xl p-5">
-      <div className="artwork mb-6 grid h-28 place-items-center rounded-2xl" style={{ "--from": "#2e1065", "--via": "#7c3aed", "--to": "#111827" } as React.CSSProperties}>
-        <Users size={46} className="text-violet-100" />
+      <div className="artwork mb-6 grid h-28 place-items-center rounded-2xl" style={{ "--from": "#0b1426", "--via": "#1d4ed8", "--to": "#111827" } as React.CSSProperties}>
+        <Users size={46} className="text-cyan-100" />
       </div>
       <div className="grid gap-3 text-sm text-slate-200">
         {["Real-time synced playback", "Shared queue", "Reactions and chat", "Host controls", "Invite anyone"].map((feature) => (
           <p key={feature} className="flex items-center gap-3">
-            <span className="h-1.5 w-1.5 rounded-full bg-violet-300" />
+            <span className="h-1.5 w-1.5 rounded-full bg-cyan-300" />
             {feature}
           </p>
         ))}
       </div>
-      <p className="mt-8 text-2xl font-black leading-tight text-violet-300">
-        One room.<br />Everyone&apos;s music.<br />Listen together.
+      <p className="mt-8 text-2xl font-black leading-tight text-cyan-300">
+        One speaker.<br />Shared queue.<br />Everyone gets a say.
       </p>
     </section>
   );
@@ -2386,7 +2387,7 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
   return (
     <label className="surface-subtle flex cursor-pointer items-center justify-between gap-4 rounded-xl p-4">
       <span className="font-bold text-white">{label}</span>
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-5 w-5 accent-violet-400" aria-label={label} />
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-5 w-5 accent-cyan-400" aria-label={label} />
     </label>
   );
 }
@@ -2395,7 +2396,7 @@ function CompactToggle({ label, checked, onChange }: { label: string; checked: b
   return (
     <button type="button" onClick={onChange} className="flex min-h-10 items-center justify-between gap-3 rounded-lg bg-white/[0.035] px-3 py-2 text-left text-sm font-bold text-white transition hover:bg-white/[0.08]" role="switch" aria-checked={checked}>
       <span>{label}</span>
-      <span className={`relative h-6 w-11 rounded-full transition ${checked ? "bg-violet-400" : "bg-white/15"}`}>
+      <span className={`relative h-6 w-11 rounded-full transition ${checked ? "bg-cyan-400" : "bg-white/15"}`}>
         <span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${checked ? "left-6" : "left-1"}`} />
       </span>
     </button>
@@ -2404,12 +2405,12 @@ function CompactToggle({ label, checked, onChange }: { label: string; checked: b
 
 function CreateSettingToggle({ label, description, checked, onChange }: { label: string; description: string; checked: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <label className={`flex cursor-pointer items-center justify-between gap-4 rounded-xl border p-4 transition ${checked ? "border-violet-200/35 bg-violet-500/18" : "border-white/10 bg-white/[0.035] hover:bg-white/[0.08]"}`}>
+    <label className={`flex cursor-pointer items-center justify-between gap-4 rounded-xl border p-4 transition ${checked ? "border-cyan-200/35 bg-blue-500/18" : "border-white/10 bg-white/[0.035] hover:bg-white/[0.08]"}`}>
       <span className="min-w-0">
         <span className="block font-black text-white">{label}</span>
         <span className="mt-1 block text-sm leading-5 text-slate-400">{description}</span>
       </span>
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-6 w-6 shrink-0 accent-violet-400" aria-label={label} />
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-6 w-6 shrink-0 accent-cyan-400" aria-label={label} />
     </label>
   );
 }
@@ -2429,7 +2430,7 @@ function confirmDestructive(message: string, action: () => void) {
 
 function IconButton({ children, label, onClick, active = false }: { children: React.ReactNode; label: string; onClick: () => void; active?: boolean }) {
   return (
-    <button onClick={onClick} className={`${buttonStyles.icon} h-11 w-11 ${active ? "border-violet-200/25 bg-violet-400/18 text-violet-100" : ""}`} aria-label={label} title={label}>
+    <button onClick={onClick} className={`${buttonStyles.icon} h-11 w-11 ${active ? "border-cyan-200/25 bg-blue-400/18 text-cyan-100" : ""}`} aria-label={label} title={label}>
       {children}
     </button>
   );

@@ -1,12 +1,14 @@
-# JamRoom
+# OpenAux
 
-JamRoom is a polished portfolio demonstration of a social music-listening room. Visitors can explore an offline Demo Mode, or create a Supabase-backed Live Room where multiple physical devices share the same queue, votes, chat, reactions, participants, and visible playback state.
+OpenAux is a collaborative party jukebox where one device controls the music and everyone in the room helps decide what plays. Visitors can explore an offline Demo Mode, or start a Supabase-backed party where phones share the same queue, votes, chat, reactions, participants, and visible playback state.
 
-JamRoom does not stream copyrighted music through a server. In Live Party Mode, only the Host device initializes the YouTube IFrame player and plays audio; guest devices see now-playing metadata and visual progress without playing audio.
+OpenAux does not stream copyrighted music through a server. In Live Party Mode, only the Host device initializes the YouTube IFrame player and plays audio; guest devices see now-playing metadata and visual progress without playing audio.
+
+The repository, local folder, and some internal technical identifiers still use the legacy JamRoom name so existing deployment, Supabase, and GitHub wiring remain stable during the rebrand.
 
 ## Features
 
-- Recruiter-friendly landing page with Create Room, Join Room, and prominent Demo Mode
+- Recruiter-friendly landing page with Start Party, Join Party, and prominent Demo Mode
 - Live Party Mode powered by Supabase anonymous auth, Postgres, Realtime, and Presence
 - `/live` room creation with room code, join URL, copy actions, and local QR code
 - `/room/[code]` join flow for guests on separate phones or computers
@@ -75,9 +77,9 @@ Linting is not currently configured as a separate script. Next.js still validate
 
 ## Demo Mode
 
-Demo Mode is the recommended way for recruiters to explore JamRoom. It resets the app into a predictable sample room with code `JAM247`, realistic participants, populated queue, chat history, emoji reactions, and occasional simulated activity such as new votes, song additions, and reactions.
+Demo Mode is the recommended way for recruiters to explore OpenAux. It resets the app into a predictable sample room with code `JAM247`, realistic participants, populated queue, chat history, reactions, and occasional simulated activity such as new votes, song additions, and reactions.
 
-The first Demo Mode launch shows a short introduction explaining what JamRoom is, what is simulated, and three suggested actions to try.
+The first Demo Mode launch shows a short introduction explaining what OpenAux is, what is simulated, and three suggested actions to try.
 
 Demo Mode remains fully local and works without Supabase.
 
@@ -224,4 +226,4 @@ vercel
 
 ## Portfolio Context
 
-JamRoom is designed as a recruiter-facing portfolio project. It demonstrates product thinking, responsive UI polish, interactive client-side state, edge-case handling, accessibility details, and deployment readiness without depending on paid APIs or private accounts.
+OpenAux is designed as a recruiter-facing portfolio project. It demonstrates product thinking, responsive UI polish, interactive client-side state, edge-case handling, accessibility details, and deployment readiness without depending on paid APIs or private accounts.

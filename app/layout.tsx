@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { brand } from "@/lib/brand";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "JamRoom | Social Listening Demo",
-  description: "A polished portfolio demo for a collaborative music listening room."
+  title: `${brand.productName} | Collaborative Party Jukebox`,
+  description: brand.primaryMessage
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

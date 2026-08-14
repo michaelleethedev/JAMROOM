@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { brand } from "@/lib/brand";
 import { ensureAnonymousUser, getSupabaseBrowserClient, isSupabaseConfigured } from "../../../lib/supabase/client";
 import {
   createTrackFromInput,
@@ -297,10 +298,10 @@ export default function LiveRoomClient({ code }: { code: string }) {
         .select("*")
         .single();
       if (joinError) throw joinError;
-      await supabase.from("messages").insert({ room_id: room.id, user_id: user.id, display_name: "JamRoom", type: "system", message: `${name} joined the room` });
+      await supabase.from("messages").insert({ room_id: room.id, user_id: user.id, display_name: brand.productName, type: "system", message: `${name} joined the party` });
       setParticipant(data);
       setLoadState("room");
-      showToast("Joined Party Mode.");
+      showToast("Joined the party.");
     } catch (joinError) {
       setError(joinError instanceof Error ? joinError.message : "Could not join this room.");
     }
@@ -344,7 +345,7 @@ export default function LiveRoomClient({ code }: { code: string }) {
         .maybeSingle();
       if (firstItem) await updatePlayer({ current_queue_item_id: firstItem.id, playback_state: "playing", position_seconds: 0 });
     }
-    await supabase.from("messages").insert({ room_id: room.id, user_id: participant.user_id, display_name: "JamRoom", type: "system", message: `${participant.display_name} added ${song.title}` });
+    await supabase.from("messages").insert({ room_id: room.id, user_id: participant.user_id, display_name: brand.productName, type: "system", message: `${participant.display_name} added ${song.title}` });
     showToast(approval === "pending" ? "Song sent for host approval." : "Song added to the queue.");
   }
 
@@ -405,7 +406,7 @@ export default function LiveRoomClient({ code }: { code: string }) {
     const next = approved[currentIndex + 1] ?? approved[0] ?? null;
     await updatePlayer({ current_queue_item_id: next?.id ?? null, playback_state: next ? "playing" : "paused", position_seconds: 0 });
     if (next && supabase && participant) {
-      await supabase.from("messages").insert({ room_id: room.id, user_id: participant.user_id, display_name: "JamRoom", type: "system", message: `${participant.display_name} skipped to ${next.title}` });
+      await supabase.from("messages").insert({ room_id: room.id, user_id: participant.user_id, display_name: brand.productName, type: "system", message: `${participant.display_name} skipped to ${next.title}` });
     }
   }
 
@@ -478,8 +479,8 @@ export default function LiveRoomClient({ code }: { code: string }) {
     showToast("Invite link copied.");
   }
 
-  if (loadState === "config") return <CenteredState title="Supabase setup needed" text="Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY before testing Live Rooms." />;
-  if (loadState === "loading") return <CenteredState title="Opening room" text="Checking the live JamRoom code..." loading />;
+  if (loadState === "config") return <CenteredState title="Supabase setup needed" text={`Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY before testing ${brand.productName}.`} />;
+  if (loadState === "loading") return <CenteredState title="Opening party" text={`Checking the live ${brand.productName} code...`} loading />;
   if (loadState === "missing") return <CenteredState title="Room not found" text="This room code is invalid, ended, or unavailable." />;
   if (loadState === "ended") return <CenteredState title="Room ended" text="The host closed this Party Mode session." />;
   if (loadState === "join" && room) {
@@ -487,7 +488,7 @@ export default function LiveRoomClient({ code }: { code: string }) {
       <main className="grid min-h-screen place-items-center px-4 py-6">
         <form onSubmit={joinRoom} className="glass w-full max-w-md rounded-3xl p-6">
           <Link href="/" className={`${buttonGhost} mb-5 px-0`}><ArrowLeft size={17} /> Back home</Link>
-          <p className="badge badge-live mb-3"><Wifi size={14} /> Party Mode</p>
+          <p className="badge badge-live mb-3"><Wifi size={14} /> OpenAux party</p>
           <h1 className="text-3xl font-black text-white">{room.name}</h1>
           <p className="metadata mt-2">Hosted room `{room.code}` · {participants.length || "Live"} participants</p>
           <label className="mt-6 grid gap-2">
@@ -495,7 +496,7 @@ export default function LiveRoomClient({ code }: { code: string }) {
             <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} className={input} autoFocus maxLength={28} />
           </label>
           {error && <p className="mt-3 rounded-xl border border-rose-300/25 bg-rose-400/10 p-3 text-sm font-bold text-rose-50">{error}</p>}
-          <button className={`${buttonPrimary} mt-5 w-full`}><Users size={18} /> Join Room</button>
+          <button className={`${buttonPrimary} mt-5 w-full`}><Users size={18} /> Join Party</button>
         </form>
       </main>
     );
@@ -508,7 +509,7 @@ export default function LiveRoomClient({ code }: { code: string }) {
           <div className="min-w-0">
             <p className="badge badge-live mb-2"><Wifi size={14} /> Live room</p>
             <h1 className="room-title truncate">{room?.name}</h1>
-            <p className="metadata mt-1 text-sm">{isHost ? "Speaker output controlled here" : "Connected as a listener"}</p>
+            <p className="metadata mt-1 text-sm">{isHost ? "Playing from this Host speaker" : "Connected as a guest controller"}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button onClick={copyInvite} className={buttonSecondary}><Copy size={16} /> Invite <span className="font-mono text-xs">{room?.code}</span></button>
@@ -599,15 +600,15 @@ function LivePlayer({
         </div>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="eyebrow text-violet-100">{isHost ? "Host playback" : "Now playing"}</p>
+            <p className="eyebrow text-cyan-100">{isHost ? "Host playback" : "Now playing"}</p>
             {currentSong?.provider && <span className={`badge ${currentSong.provider === "YouTube" ? "badge-youtube" : "badge-neutral"}`}>{currentSong.provider}</span>}
             <span className="badge badge-neutral">{player?.playback_state ?? "paused"}</span>
           </div>
           <h2 className="now-playing-title mt-3 truncate text-3xl font-black text-white sm:text-4xl">{currentSong?.title ?? "Queue is ready"}</h2>
           <p className="mt-2 truncate text-base font-semibold text-slate-300 sm:text-lg">{currentSong?.artist ?? "Add the first track to start the room"}</p>
-          <p className="metadata mt-2 text-sm">{isHost ? "This device is the only audio source." : "Live progress mirrors the host device."}</p>
+          <p className="metadata mt-2 text-sm">{isHost ? "This device is the only audio source." : "Playing from the Host speaker."}</p>
           <div className="mt-6">
-            <input type="range" min={0} max={currentSong?.duration ?? 100} value={visualProgress} disabled={!isHost || !currentSong} onChange={(event) => onSeek(Number(event.target.value))} className="w-full accent-violet-400" aria-label="Playback progress" />
+            <input type="range" min={0} max={currentSong?.duration ?? 100} value={visualProgress} disabled={!isHost || !currentSong} onChange={(event) => onSeek(Number(event.target.value))} className="w-full accent-cyan-400" aria-label="Playback progress" />
             <div className="mt-2 flex justify-between text-xs font-bold text-slate-400">
               <span>{formatDuration(visualProgress)}</span>
               <span>{formatDuration(currentSong?.duration ?? 0)}</span>
@@ -620,7 +621,7 @@ function LivePlayer({
             <button disabled={!isHost || !currentSong} onClick={onSkip} className={buttonSecondary}><SkipForward size={18} /> Skip</button>
             <label className="flex min-w-[12rem] items-center gap-3 text-sm font-bold text-slate-300">
               <Volume2 size={17} />
-              <input type="range" min={0} max={100} value={player?.volume ?? 76} disabled={!isHost} onChange={(event) => onVolume(Number(event.target.value))} className="w-full accent-violet-400" aria-label="Host volume" />
+              <input type="range" min={0} max={100} value={player?.volume ?? 76} disabled={!isHost} onChange={(event) => onVolume(Number(event.target.value))} className="w-full accent-cyan-400" aria-label="Host volume" />
             </label>
           </div>
         </div>
@@ -664,7 +665,7 @@ function LiveQueue({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="section-title">Shared Queue</h2>
-          <p className="metadata mt-1 text-sm">{queue.length} tracks in sync</p>
+          <p className="metadata mt-1 text-sm">{queue.length} tracks · vote what plays next</p>
         </div>
         <form
           onSubmit={(event) => {
@@ -722,12 +723,12 @@ function LivePeople({ participants, presence, isHost, onRemove }: { participants
           const online = Boolean(presence[person.user_id]?.length);
           return (
             <div key={person.id} className="flex items-center gap-3 rounded-xl bg-white/[0.035] p-3">
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500/20 font-black text-violet-100">{initials(person.display_name)}</span>
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-blue-500/20 font-black text-cyan-100">{initials(person.display_name)}</span>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-black text-white">{person.display_name}</p>
                 <p className="metadata text-xs">{person.role === "host" ? "Host" : "Guest"} · {online ? "online" : "disconnected"}</p>
               </div>
-              {person.role === "host" && <Crown size={17} className="text-violet-100" />}
+              {person.role === "host" && <Crown size={17} className="text-cyan-100" />}
               {isHost && person.role === "guest" && <button onClick={() => onRemove(person)} className={buttonIcon} aria-label={`Remove ${person.display_name}`}><UserMinus size={16} /></button>}
             </div>
           );
@@ -908,7 +909,7 @@ function LiveYouTubePlayer({
 function LiveArtwork({ item, large = false }: { item: LiveQueueItem | null; large?: boolean }) {
   if (item?.artwork) return <img src={item.artwork} alt={`${item.title} artwork`} className={`${large ? "aspect-video" : "h-12 w-12"} rounded-xl object-cover`} />;
   return (
-    <div className={`${large ? "aspect-video w-full rounded-2xl" : "h-12 w-12 rounded-xl"} artwork grid place-items-center bg-[linear-gradient(135deg,#7c3aed,#d946ef,#0ea5e9)]`}>
+    <div className={`${large ? "aspect-video w-full rounded-2xl" : "h-12 w-12 rounded-xl"} artwork grid place-items-center bg-[linear-gradient(135deg,#1d4ed8,#2563eb,#38bdf8)]`}>
       <Music2 size={large ? 46 : 18} className="text-white" />
     </div>
   );
@@ -940,7 +941,7 @@ function CenteredState({ title, text, loading = false }: { title: string; text: 
   return (
     <main className="grid min-h-screen place-items-center px-4">
       <div className="glass max-w-md rounded-3xl p-7 text-center">
-        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-white/[0.06] text-violet-100">
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-white/[0.06] text-cyan-100">
           {loading ? <Loader2 className="animate-spin" /> : <Radio />}
         </div>
         <h1 className="mt-5 text-3xl font-black text-white">{title}</h1>

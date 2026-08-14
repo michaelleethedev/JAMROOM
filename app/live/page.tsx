@@ -4,6 +4,7 @@ import { ArrowLeft, Copy, Crown, Link2, Loader2, PartyPopper, Play, QrCode, Shie
 import { QRCodeSVG } from "qrcode.react";
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
+import { brand } from "@/lib/brand";
 import { ensureAnonymousUser, getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { getLiveRoomUrl, isLocalInviteUrl, LIVE_DISPLAY_NAME_KEY, makeLiveRoomCode } from "@/lib/jamroom/live";
 
@@ -44,16 +45,16 @@ export default function LiveCreatePage() {
       return;
     }
     if (roomName.trim().length < 2) {
-      setError("Name the room before creating it.");
+      setError("Name the party before starting it.");
       return;
     }
     if (mode !== "party") {
-      setError("Sync Mode is intentionally marked coming soon. Party Mode is ready for this phase.");
+      setError("Sync Mode is intentionally marked coming soon. Crowd Vote is ready for this phase.");
       return;
     }
 
     try {
-      setStatus("Creating live room...");
+      setStatus("Starting party...");
       const supabase = getSupabaseBrowserClient();
       if (!supabase) throw new Error("Supabase is not configured.");
       const user = await ensureAnonymousUser();
@@ -99,9 +100,9 @@ export default function LiveCreatePage() {
         await supabase.from("messages").insert({
           room_id: data.id,
           user_id: user.id,
-          display_name: "JamRoom",
+          display_name: brand.productName,
           type: "system",
-          message: `${displayName.trim()} created Party Mode`
+          message: `${displayName.trim()} started the party`
         });
 
         room = { ...data, joinUrl: getLiveRoomUrl(data.code) };
@@ -111,7 +112,7 @@ export default function LiveCreatePage() {
       setCreatedRoom(room);
       setStatus("");
     } catch (createError) {
-      setError(createError instanceof Error ? createError.message : "Live room creation failed.");
+      setError(createError instanceof Error ? createError.message : "Party creation failed.");
       setStatus("");
     }
   }
@@ -129,10 +130,10 @@ export default function LiveCreatePage() {
             <ArrowLeft size={17} /> Back
           </Link>
           <div className="flex items-center gap-2 text-lg font-black text-white">
-            <span className="grid h-10 w-10 place-items-center rounded-xl bg-violet-500/20 text-violet-100">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-500/20 text-cyan-100">
               <PartyPopper size={20} />
             </span>
-            Live Party Mode
+            {brand.productName}
           </div>
         </header>
 
@@ -146,9 +147,9 @@ export default function LiveCreatePage() {
           <form onSubmit={createLiveRoom} className="glass grid gap-5 rounded-3xl p-5 sm:p-7">
             <div>
               <p className="badge badge-live mb-3"><Sparkles size={14} /> Real multiplayer</p>
-              <h1 className="text-4xl font-black text-white">Create a Live Room</h1>
+              <h1 className="text-4xl font-black text-white">Start a Party</h1>
               <p className="body-copy mt-3 max-w-2xl">
-                Party Mode lets friends join from separate devices while only the host device plays the music.
+                Connect the Host device to the speaker. Guests scan in, add songs, vote, and shape what plays next.
               </p>
             </div>
 
@@ -158,16 +159,16 @@ export default function LiveCreatePage() {
             </label>
 
             <label className="grid gap-2">
-              <span className="font-bold text-white">Room name</span>
+              <span className="font-bold text-white">Party name</span>
               <input value={roomName} onChange={(event) => setRoomName(event.target.value)} className={input} maxLength={36} autoComplete="off" />
             </label>
 
             <fieldset className="grid gap-2">
-              <legend className="font-bold text-white">Listening mode</legend>
+              <legend className="font-bold text-white">Queue mode</legend>
               <div className="grid gap-2 sm:grid-cols-2">
-                <button type="button" onClick={() => setMode("party")} className={`rounded-xl border p-4 text-left transition ${mode === "party" ? "border-violet-200/35 bg-violet-500/18" : "border-white/10 bg-white/[0.04] hover:bg-white/10"}`} aria-pressed={mode === "party"}>
-                  <span className="flex items-center gap-2 font-black text-white"><Users size={17} /> Party Mode</span>
-                  <span className="mt-2 block text-sm leading-5 text-slate-400">Host device plays audio. Guests control the vibe.</span>
+                <button type="button" onClick={() => setMode("party")} className={`rounded-xl border p-4 text-left transition ${mode === "party" ? "border-cyan-200/35 bg-blue-500/18" : "border-white/10 bg-white/[0.04] hover:bg-white/10"}`} aria-pressed={mode === "party"}>
+                  <span className="flex items-center gap-2 font-black text-white"><Users size={17} /> Crowd Vote</span>
+                  <span className="mt-2 block text-sm leading-5 text-slate-400">Host plays audio. Guests add songs and vote what rises.</span>
                 </button>
                 <button type="button" onClick={() => setMode("sync")} className={`rounded-xl border p-4 text-left transition ${mode === "sync" ? "border-cyan-200/35 bg-cyan-500/12" : "border-white/10 bg-white/[0.04] hover:bg-white/10"}`} aria-pressed={mode === "sync"}>
                   <span className="flex items-center gap-2 font-black text-white"><ShieldCheck size={17} /> Sync Mode</span>
@@ -179,17 +180,17 @@ export default function LiveCreatePage() {
             <div className="grid gap-2">
               <label className="surface-subtle flex items-center justify-between gap-4 rounded-xl p-4">
                 <span>
-                  <span className="block font-black text-white">Guests can add songs</span>
+                  <span className="block font-black text-white">Guest submissions</span>
                   <span className="text-sm text-slate-400">Friends can paste YouTube links or add track ideas.</span>
                 </span>
-                <input type="checkbox" checked={guestsCanAdd} onChange={(event) => setGuestsCanAdd(event.target.checked)} className="h-6 w-6 accent-violet-400" />
+                <input type="checkbox" checked={guestsCanAdd} onChange={(event) => setGuestsCanAdd(event.target.checked)} className="h-6 w-6 accent-cyan-400" />
               </label>
               <label className="surface-subtle flex items-center justify-between gap-4 rounded-xl p-4">
                 <span>
                   <span className="block font-black text-white">Require song approval</span>
                   <span className="text-sm text-slate-400">Guest songs wait for host approval before playing.</span>
                 </span>
-                <input type="checkbox" checked={requireApproval} onChange={(event) => setRequireApproval(event.target.checked)} className="h-6 w-6 accent-violet-400" />
+                <input type="checkbox" checked={requireApproval} onChange={(event) => setRequireApproval(event.target.checked)} className="h-6 w-6 accent-cyan-400" />
               </label>
             </div>
 
@@ -198,7 +199,7 @@ export default function LiveCreatePage() {
 
             <button disabled={!configured || Boolean(status)} className={`${buttonPrimary} min-h-14`}>
               {status ? <Loader2 className="animate-spin" size={18} /> : <Crown size={18} />}
-              Create Live Room
+              Start Party
             </button>
           </form>
 
@@ -208,7 +209,7 @@ export default function LiveCreatePage() {
                 <div>
                   <p className="badge badge-live mb-3">Ready to share</p>
                   <h2 className="text-2xl font-black text-white">{createdRoom.name}</h2>
-                  <p className="mt-1 font-mono text-3xl font-black tracking-[0.18em] text-violet-100">{createdRoom.code}</p>
+                  <p className="mt-1 font-mono text-3xl font-black tracking-[0.18em] text-cyan-100">{createdRoom.code}</p>
                 </div>
                 <div className="grid place-items-center rounded-2xl bg-white p-4">
                   <QRCodeSVG value={publicUrl} size={190} bgColor="#ffffff" fgColor="#050711" />
@@ -225,16 +226,16 @@ export default function LiveCreatePage() {
                   <Copy size={17} /> Copy code
                 </button>
                 <Link href={`/room/${createdRoom.code}`} className={buttonPrimary}>
-                  <Play size={18} fill="currentColor" /> Start Room
+                  <Play size={18} fill="currentColor" /> Open Host View
                 </Link>
               </div>
             ) : (
               <div className="grid h-full min-h-[28rem] content-center justify-items-center text-center">
-                <span className="grid h-16 w-16 place-items-center rounded-2xl bg-white/[0.06] text-violet-100">
+                <span className="grid h-16 w-16 place-items-center rounded-2xl bg-white/[0.06] text-cyan-100">
                   <QrCode size={28} />
                 </span>
-                <h2 className="mt-5 text-2xl font-black text-white">Invite screen appears here</h2>
-                <p className="body-copy mt-2">After creation, JamRoom shows the code, public join URL, copy actions, and a local QR code.</p>
+                <h2 className="mt-5 text-2xl font-black text-white">Scan-to-join appears here</h2>
+                <p className="body-copy mt-2">After creation, {brand.productName} shows the room code, public join URL, copy actions, and a QR code. No download required.</p>
               </div>
             )}
           </aside>
