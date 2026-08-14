@@ -112,6 +112,7 @@ export default function LiveRoomClient({ code }: { code: string }) {
   const [toast, setToast] = useState("");
   const [error, setError] = useState("");
   const userIdRef = useRef<string | null>(null);
+  const hostMediaPositionRef = useRef(0);
   const layout = useResponsiveLayout();
 
   const isHost = participant?.role === "host";
@@ -159,22 +160,59 @@ export default function LiveRoomClient({ code }: { code: string }) {
     }
   }, [roomCode, supabase]);
 
-  const refreshSharedState = useCallback(async (roomId: string) => {
+  const refreshParticipants = useCallback(async (roomId: string) => {
     if (!supabase) return;
-    const [participantResult, queueResult, voteResult, messageResult, playerResult] = await Promise.all([
-      supabase.from("participants").select("*").eq("room_id", roomId).order("joined_at", { ascending: true }),
-      supabase.from("queue_items").select("*").eq("room_id", roomId).neq("approval_status", "rejected").order("position", { ascending: true }).order("vote_score", { ascending: false }),
-      supabase.from("votes").select("*").eq("room_id", roomId),
-      supabase.from("messages").select("*").eq("room_id", roomId).order("created_at", { ascending: true }).limit(80),
-      supabase.from("player_state").select("*").eq("room_id", roomId).maybeSingle()
-    ]);
-
-    if (participantResult.data) setParticipants(participantResult.data);
-    if (queueResult.data) setQueue(queueResult.data);
-    if (voteResult.data) setVotes(voteResult.data);
-    if (messageResult.data) setMessages(messageResult.data);
-    if (playerResult.data) setPlayer(playerResult.data);
+    const { data } = await supabase.from("participants").select("*").eq("room_id", roomId).order("joined_at", { ascending: true });
+    if (data) setParticipants(data);
   }, [supabase]);
+
+  const refreshQueue = useCallback(async (roomId: string) => {
+    if (!supabase) return;
+    const { data } = await supabase.from("queue_items").select("*").eq("room_id", roomId).neq("approval_status", "rejected").order("position", { ascending: true }).order("vote_score", { ascending: false });
+    if (data) setQueue(data);
+  }, [supabase]);
+
+  const refreshVotes = useCallback(async (roomId: string) => {
+    if (!supabase) return;
+    const { data } = await supabase.from("votes").select("*").eq("room_id", roomId);
+    if (data) setVotes(data);
+  }, [supabase]);
+
+  const refreshMessages = useCallback(async (roomId: string) => {
+    if (!supabase) return;
+    const { data } = await supabase.from("messages").select("*").eq("room_id", roomId).order("created_at", { ascending: true }).limit(80);
+    if (data) setMessages(data);
+  }, [supabase]);
+
+  const refreshPlayer = useCallback(async (roomId: string) => {
+    if (!supabase) return;
+    const { data } = await supabase.from("player_state").select("*").eq("room_id", roomId).maybeSingle();
+    if (data) setPlayer(data);
+  }, [supabase]);
+
+  const refreshSharedState = useCallback(async (roomId: string) => {
+    await Promise.all([
+      refreshParticipants(roomId),
+      refreshQueue(roomId),
+      refreshVotes(roomId),
+      refreshMessages(roomId),
+      refreshPlayer(roomId)
+    ]);
+  }, [refreshMessages, refreshParticipants, refreshPlayer, refreshQueue, refreshVotes]);
+
+  useEffect(() => {
+    hostMediaPositionRef.current = player?.position_seconds ?? 0;
+  }, [player?.current_queue_item_id]);
+
+  useEffect(() => {
+    if (player?.playback_state !== "playing") hostMediaPositionRef.current = player?.position_seconds ?? 0;
+  }, [player?.playback_state, player?.position_seconds]);
+
+  useEffect(() => {
+    if (layout === "mobile") document.body.classList.add("live-room-mobile-body");
+    else document.body.classList.remove("live-room-mobile-body");
+    return () => document.body.classList.remove("live-room-mobile-body");
+  }, [layout]);
 
   useEffect(() => {
     if (!configured) return;
@@ -183,23 +221,30 @@ export default function LiveRoomClient({ code }: { code: string }) {
 
   useEffect(() => {
     if (!supabase || !room || !participant) return;
-    refreshSharedState(room.id);
+    const roomId = room.id;
+    refreshSharedState(roomId);
 
     const tableChannel = supabase
-      .channel(`jamroom-live-db-${room.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "rooms", filter: `id=eq.${room.id}` }, (payload) => {
+      .channel(`jamroom-live-db-${roomId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "rooms", filter: `id=eq.${roomId}` }, (payload) => {
         const nextRoom = payload.new as LiveRoom;
         if (nextRoom?.id) setRoom(nextRoom);
         if (nextRoom && !nextRoom.is_active) setLoadState("ended");
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "participants", filter: `room_id=eq.${room.id}` }, () => refreshSharedState(room.id))
-      .on("postgres_changes", { event: "*", schema: "public", table: "queue_items", filter: `room_id=eq.${room.id}` }, () => refreshSharedState(room.id))
-      .on("postgres_changes", { event: "*", schema: "public", table: "votes", filter: `room_id=eq.${room.id}` }, () => refreshSharedState(room.id))
-      .on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `room_id=eq.${room.id}` }, () => refreshSharedState(room.id))
-      .on("postgres_changes", { event: "*", schema: "public", table: "player_state", filter: `room_id=eq.${room.id}` }, () => refreshSharedState(room.id))
+      .on("postgres_changes", { event: "*", schema: "public", table: "participants", filter: `room_id=eq.${roomId}` }, () => refreshParticipants(roomId))
+      .on("postgres_changes", { event: "*", schema: "public", table: "queue_items", filter: `room_id=eq.${roomId}` }, () => refreshQueue(roomId))
+      .on("postgres_changes", { event: "*", schema: "public", table: "votes", filter: `room_id=eq.${roomId}` }, () => {
+        refreshVotes(roomId);
+        refreshQueue(roomId);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `room_id=eq.${roomId}` }, () => refreshMessages(roomId))
+      .on("postgres_changes", { event: "*", schema: "public", table: "player_state", filter: `room_id=eq.${roomId}` }, (payload) => {
+        const nextPlayer = payload.new as LivePlayerState;
+        if (nextPlayer?.room_id) setPlayer(nextPlayer);
+      })
       .subscribe();
 
-    const presenceChannel = supabase.channel(`jamroom-presence-${room.id}`, {
+    const presenceChannel = supabase.channel(`jamroom-presence-${roomId}`, {
       config: { presence: { key: participant.user_id } }
     });
     presenceChannel
@@ -219,7 +264,18 @@ export default function LiveRoomClient({ code }: { code: string }) {
       supabase.removeChannel(tableChannel);
       supabase.removeChannel(presenceChannel);
     };
-  }, [participant, refreshSharedState, room, supabase]);
+  }, [
+    participant?.display_name,
+    participant?.role,
+    participant?.user_id,
+    refreshMessages,
+    refreshParticipants,
+    refreshQueue,
+    refreshSharedState,
+    refreshVotes,
+    room?.id,
+    supabase
+  ]);
 
   async function joinRoom(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -316,6 +372,31 @@ export default function LiveRoomClient({ code }: { code: string }) {
     setPlayer(nextPlayer);
     await supabase.from("player_state").upsert(nextPlayer, { onConflict: "room_id" });
   }, [isHost, player, room, supabase]);
+
+  const getHostPlaybackPosition = useCallback(() => {
+    const duration = currentSong?.duration ?? 0;
+    if (currentSong?.provider === "YouTube") return clampSeconds(hostMediaPositionRef.current, duration);
+    return calculateLivePosition(player, duration);
+  }, [currentSong?.duration, currentSong?.provider, player]);
+
+  const handleHostProgress = useCallback((seconds: number) => {
+    hostMediaPositionRef.current = clampSeconds(seconds, currentSong?.duration ?? 0);
+  }, [currentSong?.duration]);
+
+  const persistHostProgress = useCallback((seconds: number) => {
+    updatePlayer({ position_seconds: clampSeconds(seconds, currentSong?.duration ?? 0) });
+  }, [currentSong?.duration, updatePlayer]);
+
+  const handleSeek = useCallback((position: number) => {
+    const nextPosition = clampSeconds(position, currentSong?.duration ?? 0);
+    hostMediaPositionRef.current = nextPosition;
+    updatePlayer({ position_seconds: nextPosition });
+  }, [currentSong?.duration, updatePlayer]);
+
+  const handlePlayPause = useCallback(() => {
+    const nextState = player?.playback_state === "playing" ? "paused" : "playing";
+    updatePlayer({ playback_state: nextState, position_seconds: getHostPlaybackPosition() });
+  }, [getHostPlaybackPosition, player?.playback_state, updatePlayer]);
 
   async function skipSong() {
     if (!room || !isHost) return;
@@ -444,7 +525,7 @@ export default function LiveRoomClient({ code }: { code: string }) {
         {layout === "desktop" ? (
           <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_25rem]">
             <div className="grid gap-4">
-              <LivePlayer currentSong={currentSong} player={player} isHost={isHost} onPlayPause={() => updatePlayer({ playback_state: player?.playback_state === "playing" ? "paused" : "playing" })} onSkip={skipSong} onSeek={(position) => updatePlayer({ position_seconds: position })} onVolume={(volume) => updatePlayer({ volume })} />
+              <LivePlayer currentSong={currentSong} player={player} isHost={isHost} onPlayPause={handlePlayPause} onSkip={skipSong} onSeek={handleSeek} onVolume={(volume) => updatePlayer({ volume })} onHostProgress={handleHostProgress} onPersistProgress={persistHostProgress} />
               <LiveQueue queue={queue} votes={userVoteBySong} participants={participants} isHost={isHost} room={room} currentItemId={player?.current_queue_item_id ?? null} onAdd={addSong} onVote={voteSong} onRemove={removeSong} onApprove={approveSong} onMove={moveSong} onPlayItem={playQueueItem} />
             </div>
             <div className="grid content-start gap-4">
@@ -455,7 +536,7 @@ export default function LiveRoomClient({ code }: { code: string }) {
           </section>
         ) : (
           <section>
-            {activeMobileTab === "player" && <LivePlayer currentSong={currentSong} player={player} isHost={isHost} onPlayPause={() => updatePlayer({ playback_state: player?.playback_state === "playing" ? "paused" : "playing" })} onSkip={skipSong} onSeek={(position) => updatePlayer({ position_seconds: position })} onVolume={(volume) => updatePlayer({ volume })} />}
+            {activeMobileTab === "player" && <LivePlayer currentSong={currentSong} player={player} isHost={isHost} onPlayPause={handlePlayPause} onSkip={skipSong} onSeek={handleSeek} onVolume={(volume) => updatePlayer({ volume })} onHostProgress={handleHostProgress} onPersistProgress={persistHostProgress} />}
             {activeMobileTab === "queue" && <LiveQueue queue={queue} votes={userVoteBySong} participants={participants} isHost={isHost} room={room} currentItemId={player?.current_queue_item_id ?? null} onAdd={addSong} onVote={voteSong} onRemove={removeSong} onApprove={approveSong} onMove={moveSong} onPlayItem={playQueueItem} />}
             {activeMobileTab === "people" && <LivePeople participants={participants} presence={presence} isHost={isHost} onRemove={removeParticipant} />}
             {activeMobileTab === "chat" && <LiveChat messages={messages} participants={participants} onSend={sendMessage} onReaction={sendReaction} />}
@@ -486,7 +567,27 @@ export default function LiveRoomClient({ code }: { code: string }) {
   );
 }
 
-function LivePlayer({ currentSong, player, isHost, onPlayPause, onSkip, onSeek, onVolume }: { currentSong: LiveQueueItem | null; player: LivePlayerState | null; isHost: boolean; onPlayPause: () => void; onSkip: () => void; onSeek: (seconds: number) => void; onVolume: (volume: number) => void }) {
+function LivePlayer({
+  currentSong,
+  player,
+  isHost,
+  onPlayPause,
+  onSkip,
+  onSeek,
+  onVolume,
+  onHostProgress,
+  onPersistProgress
+}: {
+  currentSong: LiveQueueItem | null;
+  player: LivePlayerState | null;
+  isHost: boolean;
+  onPlayPause: () => void;
+  onSkip: () => void;
+  onSeek: (seconds: number) => void;
+  onVolume: (volume: number) => void;
+  onHostProgress: (seconds: number) => void;
+  onPersistProgress: (seconds: number) => void;
+}) {
   const visualProgress = useLiveProgress(player, currentSong?.duration ?? 0);
   const isYouTube = currentSong?.provider === "YouTube" && currentSong.provider_id;
 
@@ -494,7 +595,7 @@ function LivePlayer({ currentSong, player, isHost, onPlayPause, onSkip, onSeek, 
     <section className="player-shell glass rounded-[1.6rem] p-4 sm:p-5">
       <div className="grid gap-5 xl:grid-cols-[minmax(18rem,0.74fr)_1fr] xl:items-center">
         <div className="desktop-art-wrap">
-          {isHost && isYouTube ? <LiveYouTubePlayer videoId={currentSong.provider_id!} player={player} onEnded={onSkip} onProgress={onSeek} /> : <LiveArtwork item={currentSong} large />}
+          {isHost && isYouTube ? <LiveYouTubePlayer videoId={currentSong.provider_id!} player={player} onEnded={onSkip} onHostProgress={onHostProgress} onPersistProgress={onPersistProgress} /> : <LiveArtwork item={currentSong} large />}
         </div>
         <div className="min-w-0">
           <p className="eyebrow text-violet-100">{isHost ? "Host playback" : "Now playing"}</p>
@@ -695,18 +796,32 @@ function LiveHostPanel({ room, player, onSetting, onClear, onEnd }: { room: Live
   );
 }
 
-function LiveYouTubePlayer({ videoId, player, onEnded, onProgress }: { videoId: string; player: LivePlayerState | null; onEnded: () => void; onProgress: (seconds: number) => void }) {
+function LiveYouTubePlayer({
+  videoId,
+  player,
+  onEnded,
+  onHostProgress,
+  onPersistProgress
+}: {
+  videoId: string;
+  player: LivePlayerState | null;
+  onEnded: () => void;
+  onHostProgress: (seconds: number) => void;
+  onPersistProgress: (seconds: number) => void;
+}) {
   const mountRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YouTubePlayer | null>(null);
   const onEndedRef = useRef(onEnded);
-  const onProgressRef = useRef(onProgress);
+  const onHostProgressRef = useRef(onHostProgress);
+  const onPersistProgressRef = useRef(onPersistProgress);
   const lastSeekRef = useRef(player?.position_seconds ?? 0);
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     onEndedRef.current = onEnded;
-    onProgressRef.current = onProgress;
-  }, [onEnded, onProgress]);
+    onHostProgressRef.current = onHostProgress;
+    onPersistProgressRef.current = onPersistProgress;
+  }, [onEnded, onHostProgress, onPersistProgress]);
 
   useEffect(() => {
     let cancelled = false;
@@ -716,7 +831,7 @@ function LiveYouTubePlayer({ videoId, player, onEnded, onProgress }: { videoId: 
       playerRef.current?.destroy();
       playerRef.current = new api.Player(mountRef.current, {
         videoId,
-        playerVars: { playsinline: 1, modestbranding: 1, enablejsapi: 1, origin: window.location.origin },
+        playerVars: { playsinline: 1, modestbranding: 1, enablejsapi: 1, origin: window.location.origin, controls: 0, disablekb: 1, fs: 0, rel: 0 },
         events: {
           onReady: ({ target }) => {
             target.setVolume(player?.volume ?? 76);
@@ -763,14 +878,22 @@ function LiveYouTubePlayer({ videoId, player, onEnded, onProgress }: { videoId: 
 
   useEffect(() => {
     if (player?.playback_state !== "playing") return;
+    let ticks = 0;
     const timer = window.setInterval(() => {
       if (!playerRef.current) return;
-      onProgressRef.current(Math.round(playerRef.current.getCurrentTime()));
-    }, 15000);
+      const seconds = Math.round(playerRef.current.getCurrentTime());
+      onHostProgressRef.current(seconds);
+      ticks += 1;
+      if (ticks % 15 === 0) onPersistProgressRef.current(seconds);
+    }, 1000);
     return () => window.clearInterval(timer);
   }, [player?.playback_state]);
 
-  return <div ref={mountRef} className="aspect-video w-full overflow-hidden rounded-2xl bg-black" aria-label="Host YouTube player" />;
+  return (
+    <div className="host-youtube-player aspect-video w-full overflow-hidden rounded-2xl bg-black" aria-label="Host YouTube player">
+      <div ref={mountRef} className="h-full w-full" />
+    </div>
+  );
 }
 
 function LiveArtwork({ item, large = false }: { item: LiveQueueItem | null; large?: boolean }) {
@@ -824,18 +947,25 @@ function useLiveProgress(player: LivePlayerState | null, duration: number) {
   useEffect(() => {
     if (!player) return;
     const calculate = () => {
-      if (player.playback_state !== "playing") {
-        setProgress(player.position_seconds);
-        return;
-      }
-      const elapsed = (Date.now() - new Date(player.updated_at).getTime()) / 1000;
-      setProgress(Math.min(duration || 0, Math.round(player.position_seconds + elapsed)));
+      setProgress(calculateLivePosition(player, duration));
     };
     calculate();
     const timer = window.setInterval(calculate, 1000);
     return () => window.clearInterval(timer);
   }, [duration, player]);
   return progress;
+}
+
+function calculateLivePosition(player: LivePlayerState | null, duration: number) {
+  if (!player) return 0;
+  if (player.playback_state !== "playing") return clampSeconds(player.position_seconds, duration);
+  const elapsed = (Date.now() - new Date(player.updated_at).getTime()) / 1000;
+  return clampSeconds(Math.round(player.position_seconds + elapsed), duration);
+}
+
+function clampSeconds(seconds: number, duration: number) {
+  const max = duration > 0 ? duration : Number.MAX_SAFE_INTEGER;
+  return Math.min(max, Math.max(0, Math.round(Number.isFinite(seconds) ? seconds : 0)));
 }
 
 function useResponsiveLayout(): LiveLayout {

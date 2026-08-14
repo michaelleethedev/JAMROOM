@@ -51,6 +51,15 @@ body {
   overscroll-behavior-y: contain;
 }
 
+.host-youtube-player iframe {
+  pointer-events: none;
+}
+
+.live-room-mobile-body {
+  height: 100dvh;
+  overflow: hidden;
+}
+
 button,
 input,
 select {
@@ -1023,6 +1032,12 @@ details > summary::-webkit-details-marker {
 }
 
 @media (max-width: 1023px) {
+  .live-room-main {
+    height: 100dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .mobile-screen,
   .mobile-player-screen,
   .mobile-queue-screen,
