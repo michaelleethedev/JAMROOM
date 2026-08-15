@@ -102,7 +102,7 @@ Phones cannot join a room through a `localhost` invite because `localhost` means
 For reliable phone testing, use the deployed Vercel URL:
 
 ```text
-https://jamroom-beige.vercel.app/live
+https://openaux-party.vercel.app/live
 ```
 
 For local LAN testing, bind Next.js to all network interfaces and set the public app URL to your computer's LAN IP for that session:

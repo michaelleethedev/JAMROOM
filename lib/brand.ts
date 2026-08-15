@@ -8,5 +8,5 @@ export const brand = {
   primaryMessage: "A collaborative party jukebox where one device controls the music and everyone helps decide what plays.",
   githubUrl: "https://github.com/michaelleethedev/JAMROOM",
   portfolioUrl: "https://michaelleethedev.com",
-  appUrl: "https://jamroom-beige.vercel.app"
+  appUrl: "https://openaux-party.vercel.app"
 };
