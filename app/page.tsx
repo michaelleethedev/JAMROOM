@@ -205,7 +205,7 @@ const PROJECT_LINKS = {
   app: process.env.NEXT_PUBLIC_APP_URL || brand.appUrl
 };
 
-const PERSISTED_STATE_VERSION = 4;
+const PERSISTED_STATE_VERSION = 5;
 
 const buttonStyles = {
   primary: "btn btn-primary",
@@ -221,6 +221,16 @@ const inputStyles = {
   error: "input-control input-error"
 };
 
+const reactionOptions = [
+  { emoji: "🔥", label: "Heat", icon: Gauge },
+  { emoji: "💜", label: "Love", icon: Music2 },
+  { emoji: "✨", label: "Glow", icon: Sparkles },
+  { emoji: "🙌", label: "Hype", icon: Radio },
+  { emoji: "⚡", label: "Boost", icon: Wifi }
+] as const;
+
+const reactionLabel = (emoji: string) => reactionOptions.find((reaction) => reaction.emoji === emoji)?.label ?? "React";
+
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -233,7 +243,7 @@ const library: Song[] = [
   { id: "better", title: "Better Together", artist: "The Brights", album: "Room Tone", duration: 208, cover: ["#10b981", "#2563eb", "#172554"] },
   { id: "afterimage", title: "Afterimage", artist: "Sable Room", album: "Blue Hour", duration: 231, cover: ["#38bdf8", "#2563eb", "#0f172a"] },
   { id: "solstice", title: "Solstice Drive", artist: "North Runner", album: "Open Roads", duration: 268, cover: ["#f97316", "#be123c", "#312e81"] },
-  { id: "glimmer", title: "Glimmer Mode", artist: "Pixel Choir", album: "Shared Screen", duration: 203, cover: ["#38bdf8", "#8b5cf6", "#1e1b4b"] },
+  { id: "glimmer", title: "Glimmer Mode", artist: "Pixel Choir", album: "Shared Screen", duration: 203, cover: ["#38bdf8", "#2563eb", "#0f172a"] },
   { id: "golden", title: "Golden Hourline", artist: "Sable Room", album: "Blue Hour", duration: 231, cover: ["#38bdf8", "#2563eb", "#0f172a"] },
   { id: "signal", title: "Signal Bloom", artist: "The Relay", album: "Everyone Online", duration: 192, cover: ["#84cc16", "#14b8a6", "#172554"] },
   { id: "mono", title: "Monorail Hearts", artist: "Luca Drift", album: "Transit Dreams", duration: 209, cover: ["#fb7185", "#facc15", "#0f172a"] },
@@ -253,7 +263,7 @@ const mockUsers: User[] = [
 
 const demoChat: ChatMessage[] = [
   { id: "c1", userId: "system", text: "Weekend Vibes is live", time: "8:04 PM", reactions: [], system: true },
-  { id: "c2", userId: "sarah", text: "This opener is perfect for the drive home 🔥", time: "8:05 PM", reactions: ["🔥"] },
+  { id: "c2", userId: "sarah", text: "This opener is perfect for the drive home.", time: "8:05 PM", reactions: ["🔥"] },
   { id: "c3", userId: "mike", text: "Ocean Drive should sit right after Midnight Glow.", time: "8:06 PM", reactions: [] },
   { id: "c4", userId: "system", text: "Mike added Ocean Drive", time: "8:06 PM", reactions: [], system: true },
   { id: "c5", userId: "jules", text: "Vote Midnight Glow up next?", time: "8:07 PM", reactions: ["💜"] },
@@ -642,7 +652,7 @@ function Landing() {
           <button onClick={() => setAboutOpen(true)} className={buttonStyles.ghost}>
             About This Demo
           </button>
-          <button onClick={startDemo} className={`${buttonStyles.primary} hidden sm:inline-flex`}>
+          <button onClick={startDemo} className={`${buttonStyles.primary} landing-header-demo hidden sm:inline-flex`}>
             Try Demo
           </button>
         </div>
@@ -751,9 +761,7 @@ function LandingSocialArtwork() {
             ))}
           </div>
         </div>
-        <div className="mt-5">
-          <img className="landing-feature-art" src="/images/jamroom-daydreams.png" alt="" />
-        </div>
+        <OpenAuxCoverWall />
         <div className="mt-5 flex items-center justify-center gap-4">
           <div className="grid h-12 w-12 place-items-center rounded-full bg-white/8 text-white"><Shuffle size={18} /></div>
           <div className="grid h-16 w-16 place-items-center rounded-full bg-[linear-gradient(135deg,#1D4ED8,#38BDF8)] text-white shadow-xl shadow-blue-950/50"><Pause size={24} fill="currentColor" /></div>
@@ -768,10 +776,30 @@ function LandingSocialArtwork() {
       <div className="absolute bottom-4 left-0 hidden w-56 rounded-2xl border border-white/10 bg-slate-950/70 p-4 shadow-2xl shadow-black/40 backdrop-blur sm:block lg:left-2">
         <p className="text-xs font-black uppercase tracking-[0.14em] text-cyan-100">Live chat</p>
         <div className="mt-3 grid gap-2 text-sm text-slate-200">
-          <p className="rounded-xl bg-white/[0.06] px-3 py-2">this song hits 🔥</p>
+          <p className="rounded-xl bg-white/[0.06] px-3 py-2">this song hits</p>
           <p className="rounded-xl bg-blue-500/20 px-3 py-2">vote Midnight Glow next</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function OpenAuxCoverWall() {
+  return (
+    <div className="openaux-cover-wall mt-5 rounded-[1.45rem] border border-white/10 shadow-2xl shadow-black/45">
+      <div className="cover-eq" aria-hidden="true">
+        {Array.from({ length: 18 }).map((_, index) => (
+          <span key={index} style={{ "--i": index } as React.CSSProperties} />
+        ))}
+      </div>
+      <div className="cover-stack" aria-hidden="true">
+        {["AUX", "01", "OA"].map((label, index) => (
+          <span key={label} className={`cover-tile tile-${index + 1}`}>
+            <b>{label}</b>
+          </span>
+        ))}
+      </div>
+      <div className="cover-wave" aria-hidden="true" />
     </div>
   );
 }
@@ -1261,7 +1289,7 @@ function Player() {
 
   return (
     <section className="glass player-shell mobile-player-screen relative min-w-0 overflow-hidden rounded-2xl p-4 sm:p-5 xl:p-6">
-      <div className="absolute inset-x-0 top-0 h-32 bg-[linear-gradient(180deg,rgba(168,85,247,0.16),transparent)]" />
+      <div className="absolute inset-x-0 top-0 h-32 bg-[linear-gradient(180deg,rgba(56,189,248,0.12),transparent)]" />
       <div className="relative grid min-w-0 gap-5 xl:grid-cols-[minmax(18rem,0.72fr)_minmax(0,1fr)] 2xl:grid-cols-[minmax(21rem,0.66fr)_minmax(0,1fr)]">
         <div className="relative min-w-0">
           <div className="mobile-art-wrap desktop-art-wrap">
@@ -1345,19 +1373,20 @@ function Player() {
             </div>
           </div>
           <div className="mobile-reactions mt-5 flex flex-wrap items-center gap-2">
-            {["🔥", "💜", "✨", "🙌", "⚡"].map((emoji) => (
-              <button key={emoji} onClick={() => addReaction(emoji)} className={`${buttonStyles.secondary} h-12 min-w-12 px-3 text-xl shadow-sm`} aria-label={`React ${emoji}`}>
-                {emoji}
+            {reactionOptions.map(({ emoji, label, icon: Icon }) => (
+              <button key={emoji} onClick={() => addReaction(emoji)} className="reaction-chip" aria-label={`React ${label}`} title={label}>
+                <Icon size={16} />
+                <span>{label}</span>
               </button>
             ))}
-            <span className="ml-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Tap to react</span>
+            <span className="ml-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">React</span>
           </div>
         </div>
       </div>
       <div className="pointer-events-none absolute right-8 top-8 flex gap-2" aria-hidden="true">
         {reactions.slice(-4).map((emoji, index) => (
-          <span key={`${emoji}-${index}`} className="reaction-pop rounded-full bg-white/10 px-3 py-2 text-2xl shadow-lg">
-            {emoji}
+          <span key={`${emoji}-${index}`} className="reaction-pop rounded-full border border-cyan-200/15 bg-slate-950/72 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-cyan-100 shadow-lg">
+            {reactionLabel(emoji)}
           </span>
         ))}
       </div>
@@ -1611,15 +1640,14 @@ function QueueRow({
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
           <p className="truncate font-black text-white sm:font-bold">{song.title}</p>
-          {status && <span className={`badge hidden shrink-0 sm:inline-flex ${statusTone(status)}`}>{status}</span>}
-          {song.sourceProvider && <span className={`badge hidden shrink-0 sm:inline-flex ${providerTone.badge}`}>{song.sourceProvider}</span>}
+          {status && <span className={`badge shrink-0 ${statusTone(status)}`}>{status}</span>}
+          {song.sourceProvider && !isCurrent && <span className={`badge hidden shrink-0 sm:inline-flex ${providerTone.badge}`}>{song.sourceProvider}</span>}
         </div>
-        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400 sm:gap-x-3 sm:text-sm">
+        <div className="queue-meta mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400 sm:gap-x-3 sm:text-sm">
           <span className="truncate text-slate-300 sm:text-slate-400">{song.artist}</span>
           <span className="hidden items-center gap-1 sm:inline-flex"><Music2 size={13} /> {song.addedBy === "you" ? "You" : userName(song.addedBy)}</span>
           <span className="inline-flex items-center gap-1"><Clock3 size={13} /> {formatTime(song.duration)}</span>
-          {song.sourceProvider && <span className={`inline-flex sm:hidden ${providerTone.text}`}>{song.sourceProvider}</span>}
-          {status && <span className={`inline-flex sm:hidden ${statusTextTone(status)}`}>{status}</span>}
+          {song.sourceProvider && !isCurrent && <span className={`inline-flex sm:hidden ${providerTone.text}`}>{song.sourceProvider}</span>}
           {song.sourceUrl && (
             <a href={song.sourceUrl} target="_blank" rel="noreferrer" className={`hidden items-center gap-1 hover:text-white sm:inline-flex ${providerTone.text}`}>
               <Link2 size={13} /> Open
@@ -1739,14 +1767,6 @@ function statusTone(status: string) {
   return "badge-neutral";
 }
 
-function statusTextTone(status: string) {
-  if (status === "Playing") return "text-green-100";
-  if (status === "Up next") return "text-cyan-100";
-  if (status === "Pending") return "text-amber-100";
-  if (status === "Unavailable") return "text-rose-100";
-  return "text-slate-400";
-}
-
 function PeoplePanel({ embedded = false }: { embedded?: boolean }) {
   const users = useJamStore((state) => state.users);
   const viewMode = useJamStore((state) => state.viewMode);
@@ -1834,7 +1854,7 @@ function ChatPanel({ embedded = false }: { embedded?: boolean }) {
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <h2 className="section-title">Chat</h2>
-            <p className="metadata text-sm">Room messages and reactions</p>
+            <p className="metadata text-sm">Live room conversation</p>
           </div>
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-white/[0.055] text-slate-200">
             <MessageCircle size={20} />
@@ -1868,8 +1888,8 @@ function ChatPanel({ embedded = false }: { embedded?: boolean }) {
                 {messageItem.reactions.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1">
                     {messageItem.reactions.map((reaction, index) => (
-                      <span key={`${reaction}-${index}`} className="rounded-full bg-white/10 px-2 py-0.5 text-xs">
-                        {reaction}
+                      <span key={`${reaction}-${index}`} className="rounded-full border border-white/10 bg-white/[0.055] px-2 py-0.5 text-[0.65rem] font-black uppercase tracking-[0.08em] text-cyan-100">
+                        {reactionLabel(reaction)}
                       </span>
                     ))}
                   </div>
@@ -2140,19 +2160,19 @@ function useDemoPulse() {
 
 function DemoHint({ onClose }: { onClose: () => void }) {
   return (
-    <div className="demo-hint mt-4 flex flex-col gap-3 rounded-2xl border border-cyan-200/15 bg-cyan-200/[0.07] p-4 text-sm text-cyan-50 shadow-xl shadow-cyan-950/10 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex min-w-0 gap-3">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-cyan-200/10 text-cyan-100">
-          <Sparkles size={17} />
+    <div className="demo-hint mt-3 flex items-start gap-3 rounded-2xl border border-cyan-200/12 bg-cyan-200/[0.055] p-3 text-sm text-cyan-50 shadow-xl shadow-cyan-950/10 sm:mt-4 sm:items-center sm:justify-between sm:p-4">
+      <div className="flex min-w-0 flex-1 gap-3">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-cyan-200/10 text-cyan-100 sm:h-9 sm:w-9">
+          <Sparkles size={16} />
         </span>
         <div className="min-w-0">
-          <p className="font-black text-white">You’re viewing a live {brand.productName} demo.</p>
-          <p className="mt-1 leading-6 text-cyan-50/85">Try switching between Host and Guest, adding a song, voting for the crowd pick, or sending a message.</p>
-          <p className="mt-1 text-xs font-bold text-cyan-100/70">Room activity is simulated. YouTube links use the real embedded player.</p>
+          <p className="font-black text-white">Live {brand.productName} demo</p>
+          <p className="mt-0.5 leading-5 text-cyan-50/80">Try Host/Guest, add a song, vote, or chat.</p>
+          <p className="mt-1 hidden text-xs font-bold text-cyan-100/65 sm:block">Room activity is simulated. YouTube links use the real embedded player.</p>
         </div>
       </div>
-      <button onClick={onClose} className={`${buttonStyles.secondary} min-h-10 shrink-0 px-3 py-2`} aria-label="Dismiss demo hint">
-        <X size={16} /> Dismiss
+      <button onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.045] text-slate-300 transition hover:bg-white/10 hover:text-white" aria-label="Dismiss demo hint" title="Dismiss">
+        <X size={16} />
       </button>
     </div>
   );
@@ -2293,7 +2313,7 @@ function NowPlayingPreview() {
 function LandingDeviceShowcase() {
   return (
     <div className="relative min-h-[34rem] overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/45 p-5 shadow-2xl shadow-black/40">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(168,85,247,0.26),transparent_20rem)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(56,189,248,0.18),transparent_20rem)]" />
       <div className="relative grid h-full items-center gap-5 md:grid-cols-[0.82fr_1fr]">
         <div className="phone-frame mx-auto w-full max-w-[17rem]">
           <div className="flex items-center justify-between text-xs text-white">
