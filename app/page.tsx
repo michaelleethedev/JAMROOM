@@ -54,6 +54,7 @@ type Song = {
   album: string;
   duration: number;
   cover: [string, string, string];
+  artwork?: string;
   sourceId?: string;
   sourceUrl?: string;
   sourceProvider?: "YouTube" | "Spotify" | "Apple Music" | "SoundCloud" | "Music Link";
@@ -205,7 +206,7 @@ const PROJECT_LINKS = {
   app: process.env.NEXT_PUBLIC_APP_URL || brand.appUrl
 };
 
-const PERSISTED_STATE_VERSION = 5;
+const PERSISTED_STATE_VERSION = 6;
 
 const buttonStyles = {
   primary: "btn btn-primary",
@@ -236,18 +237,21 @@ function cx(...classes: Array<string | false | null | undefined>) {
 }
 
 const library: Song[] = [
-  { id: "daydreams", title: "Daydreams", artist: "Miami Dusk", album: "Neon Drive", duration: 215, cover: ["#1d4ed8", "#2563eb", "#38bdf8"] },
-  { id: "midnight", title: "Midnight Glow", artist: "Luna Waves", album: "Blue Hour", duration: 182, cover: ["#0b1426", "#1d4ed8", "#38bdf8"] },
-  { id: "ocean", title: "Ocean Drive", artist: "Coastal Club", album: "After Sunset", duration: 165, cover: ["#0ea5e9", "#2563eb", "#020617"] },
-  { id: "sleepless", title: "Sleepless Nights", artist: "Kyoto Coast", album: "City Lights", duration: 192, cover: ["#f97316", "#be123c", "#312e81"] },
-  { id: "better", title: "Better Together", artist: "The Brights", album: "Room Tone", duration: 208, cover: ["#10b981", "#2563eb", "#172554"] },
-  { id: "afterimage", title: "Afterimage", artist: "Sable Room", album: "Blue Hour", duration: 231, cover: ["#38bdf8", "#2563eb", "#0f172a"] },
-  { id: "solstice", title: "Solstice Drive", artist: "North Runner", album: "Open Roads", duration: 268, cover: ["#f97316", "#be123c", "#312e81"] },
-  { id: "glimmer", title: "Glimmer Mode", artist: "Pixel Choir", album: "Shared Screen", duration: 203, cover: ["#38bdf8", "#2563eb", "#0f172a"] },
-  { id: "golden", title: "Golden Hourline", artist: "Sable Room", album: "Blue Hour", duration: 231, cover: ["#38bdf8", "#2563eb", "#0f172a"] },
-  { id: "signal", title: "Signal Bloom", artist: "The Relay", album: "Everyone Online", duration: 192, cover: ["#84cc16", "#14b8a6", "#172554"] },
-  { id: "mono", title: "Monorail Hearts", artist: "Luca Drift", album: "Transit Dreams", duration: 209, cover: ["#fb7185", "#facc15", "#0f172a"] },
-  { id: "static", title: "Static Jubilee", artist: "Echo Vale", album: "Room Tone", duration: 254, cover: ["#6366f1", "#0ea5e9", "#020617"] }
+  { id: "daydreams", title: "Daydreams", artist: "The Midnight", album: "Night Drive", duration: 215, cover: ["#1d4ed8", "#2563eb", "#38bdf8"], artwork: "/images/openaux-artwork/daydreams.jpg" },
+  { id: "midnight", title: "Midnight Drive", artist: "Khruangbin", album: "City Lights", duration: 182, cover: ["#0b1426", "#1d4ed8", "#38bdf8"], artwork: "/images/openaux-artwork/midnight-drive.jpg" },
+  { id: "ocean", title: "Electric Feel", artist: "MGMT", album: "Waveform", duration: 165, cover: ["#0ea5e9", "#2563eb", "#020617"], artwork: "/images/openaux-artwork/electric-feel.jpg" },
+  { id: "sleepless", title: "Nights", artist: "Frank Ocean", album: "Late Hallway", duration: 192, cover: ["#f97316", "#be123c", "#312e81"], artwork: "/images/openaux-artwork/nights.jpg" },
+  { id: "better", title: "Sunset Lover", artist: "Petit Biscuit", album: "Pink Horizon", duration: 208, cover: ["#10b981", "#2563eb", "#172554"], artwork: "/images/openaux-artwork/sunset-lover.jpg" },
+  { id: "afterimage", title: "Afterglow", artist: "RUFUS DU SOL", album: "Signal Hills", duration: 231, cover: ["#38bdf8", "#2563eb", "#0f172a"], artwork: "/images/openaux-artwork/afterglow.jpg" },
+  { id: "solstice", title: "Higher", artist: "ODESZA", album: "Neon Triangle", duration: 268, cover: ["#f97316", "#be123c", "#312e81"], artwork: "/images/openaux-artwork/higher.jpg" },
+  { id: "glimmer", title: "The Less I Know", artist: "Tame Impala", album: "Blue Marble", duration: 203, cover: ["#38bdf8", "#2563eb", "#0f172a"], artwork: "/images/openaux-artwork/the-less-i-know.jpg" },
+  { id: "golden", title: "Neon Heart", artist: "Moonchild", album: "Open Circle", duration: 231, cover: ["#38bdf8", "#2563eb", "#0f172a"], artwork: "/images/openaux-artwork/neon-heart.jpg" },
+  { id: "signal", title: "Breathe", artist: "RUFUS DU SOL", album: "Equalizer", duration: 192, cover: ["#84cc16", "#14b8a6", "#172554"], artwork: "/images/openaux-artwork/breathe.jpg" },
+  { id: "mono", title: "Cloudnine", artist: "FKJ", album: "Soft Sky", duration: 209, cover: ["#fb7185", "#facc15", "#0f172a"], artwork: "/images/openaux-artwork/cloudnine.jpg" },
+  { id: "static", title: "Hold On", artist: "Chet Faker", album: "Painted Static", duration: 254, cover: ["#6366f1", "#0ea5e9", "#020617"], artwork: "/images/openaux-artwork/hold-on.jpg" },
+  { id: "lost", title: "Lost In Time", artist: "The Weeknd", album: "Sunset Water", duration: 226, cover: ["#f97316", "#be123c", "#312e81"], artwork: "/images/openaux-artwork/lost-in-time.jpg" },
+  { id: "nowhere", title: "Nowhere", artist: "HONNE", album: "Mountain Air", duration: 214, cover: ["#60a5fa", "#312e81", "#020617"], artwork: "/images/openaux-artwork/nowhere.jpg" },
+  { id: "fade", title: "Fade Away", artist: "ODESZA", album: "Low Light", duration: 219, cover: ["#2563eb", "#d946ef", "#020617"], artwork: "/images/openaux-artwork/fade-away.jpg" }
 ];
 
 const mockUsers: User[] = [
@@ -264,9 +268,9 @@ const mockUsers: User[] = [
 const demoChat: ChatMessage[] = [
   { id: "c1", userId: "system", text: "Weekend Vibes is live", time: "8:04 PM", reactions: [], system: true },
   { id: "c2", userId: "sarah", text: "This opener is perfect for the drive home.", time: "8:05 PM", reactions: ["🔥"] },
-  { id: "c3", userId: "mike", text: "Ocean Drive should sit right after Midnight Glow.", time: "8:06 PM", reactions: [] },
-  { id: "c4", userId: "system", text: "Mike added Ocean Drive", time: "8:06 PM", reactions: [], system: true },
-  { id: "c5", userId: "jules", text: "Vote Midnight Glow up next?", time: "8:07 PM", reactions: ["💜"] },
+  { id: "c3", userId: "mike", text: "Electric Feel should sit right after Midnight Drive.", time: "8:06 PM", reactions: [] },
+  { id: "c4", userId: "system", text: "Mike added Electric Feel", time: "8:06 PM", reactions: [], system: true },
+  { id: "c5", userId: "jules", text: "Vote Midnight Drive up next?", time: "8:07 PM", reactions: ["💜"] },
   { id: "c6", userId: "you", text: "Welcome in. Add a track, vote, or switch to Guest view.", time: "8:08 PM", reactions: ["✨"] }
 ];
 
@@ -751,7 +755,7 @@ function LandingSocialArtwork() {
           <div>
             <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100">Crowd Pick</p>
             <h2 className="mt-1 text-2xl font-black text-white">Daydreams</h2>
-            <p className="text-sm text-slate-400">Miami Dusk</p>
+            <p className="text-sm text-slate-400">The Midnight</p>
           </div>
           <div className="flex -space-x-2">
             {mockUsers.slice(0, 4).map((user) => (
@@ -761,7 +765,9 @@ function LandingSocialArtwork() {
             ))}
           </div>
         </div>
-        <OpenAuxCoverWall />
+        <div className="mt-5 overflow-hidden rounded-[1.45rem] border border-white/10 shadow-2xl shadow-black/45">
+          <AlbumArt song={library[0]} large />
+        </div>
         <div className="mt-5 flex items-center justify-center gap-4">
           <div className="grid h-12 w-12 place-items-center rounded-full bg-white/8 text-white"><Shuffle size={18} /></div>
           <div className="grid h-16 w-16 place-items-center rounded-full bg-[linear-gradient(135deg,#1D4ED8,#38BDF8)] text-white shadow-xl shadow-blue-950/50"><Pause size={24} fill="currentColor" /></div>
@@ -777,29 +783,9 @@ function LandingSocialArtwork() {
         <p className="text-xs font-black uppercase tracking-[0.14em] text-cyan-100">Live chat</p>
         <div className="mt-3 grid gap-2 text-sm text-slate-200">
           <p className="rounded-xl bg-white/[0.06] px-3 py-2">this song hits</p>
-          <p className="rounded-xl bg-blue-500/20 px-3 py-2">vote Midnight Glow next</p>
+          <p className="rounded-xl bg-blue-500/20 px-3 py-2">vote Midnight Drive next</p>
         </div>
       </div>
-    </div>
-  );
-}
-
-function OpenAuxCoverWall() {
-  return (
-    <div className="openaux-cover-wall mt-5 rounded-[1.45rem] border border-white/10 shadow-2xl shadow-black/45">
-      <div className="cover-eq" aria-hidden="true">
-        {Array.from({ length: 18 }).map((_, index) => (
-          <span key={index} style={{ "--i": index } as React.CSSProperties} />
-        ))}
-      </div>
-      <div className="cover-stack" aria-hidden="true">
-        {["AUX", "01", "OA"].map((label, index) => (
-          <span key={label} className={`cover-tile tile-${index + 1}`}>
-            <b>{label}</b>
-          </span>
-        ))}
-      </div>
-      <div className="cover-wave" aria-hidden="true" />
     </div>
   );
 }
@@ -1567,7 +1553,7 @@ function QueuePanel() {
           ) : (
             invalidMusicLink(query)
               ? "That link does not look like a supported demo music URL. Try Spotify, Apple Music, YouTube, or SoundCloud-style links."
-              : "No demo result found. Try Daydreams, Ocean, Glimmer, or paste a music-style link."
+              : "No demo result found. Try Daydreams, Electric Feel, Higher, or paste a music-style link."
           )}
         </div>
       )}
@@ -2147,7 +2133,7 @@ function useDemoPulse() {
             queue: sortedQueue([...state.queue, nextSong], state.currentSongId),
             chat: [
               ...state.chat,
-              { id: `demo-add-${Date.now()}`, userId: "system", text: "Ari added Monorail Hearts", time: "now", reactions: [], system: true }
+              { id: `demo-add-${Date.now()}`, userId: "system", text: `Ari added ${nextSong.title}`, time: "now", reactions: [], system: true }
             ]
           };
         });
@@ -2273,15 +2259,17 @@ function Logo({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function AlbumArt({ song, large = false }: { song?: Pick<Song, "title" | "cover">; large?: boolean }) {
+function AlbumArt({ song, large = false }: { song?: Pick<Song, "title" | "cover" | "artwork">; large?: boolean }) {
   const cover = song?.cover ?? ["#334155", "#111827", "#020617"];
   return (
     <div
-      className={`artwork grid shrink-0 place-items-center rounded-2xl ${large ? "aspect-square w-full min-w-0" : "h-14 w-14"}`}
+      className={`artwork grid shrink-0 place-items-center rounded-2xl ${song?.artwork ? "has-image" : ""} ${large ? "aspect-square w-full min-w-0" : "h-14 w-14"}`}
       style={{ "--from": cover[0], "--via": cover[1], "--to": cover[2] } as React.CSSProperties}
       aria-label={song ? `${song.title} album artwork` : "Album artwork placeholder"}
     >
-      {large ? (
+      {song?.artwork ? (
+        <img className="artwork-image" src={song.artwork} alt="" loading={large ? "eager" : "lazy"} />
+      ) : large ? (
         <div className="album-scene" aria-hidden="true">
           <span className="sun" />
           <span className="palm left" />
